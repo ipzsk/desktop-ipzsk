@@ -1,0 +1,21 @@
+:root { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #17223a; background: #f6f7fb; font-synthesis: none; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { max-width: 440px; margin: auto; padding: 36px 32px 24px; }
+.brand { font-size: 22px; font-weight: 800; letter-spacing: 1px; color: #2859ce; }
+.brand span { color: #7b879d; font-size: 11px; margin-left: 6px; }
+h1 { font-size: 26px; margin: 28px 0 8px; }
+.intro, footer { color: #66728a; font-size: 13px; line-height: 1.7; }
+form { margin-top: 26px; }
+label { display: block; margin: 17px 0 8px; font-size: 13px; font-weight: 600; }
+input:not([type=checkbox]) { width: 100%; min-width: 0; border: 1px solid #ccd3e0; border-radius: 9px; padding: 12px; background: white; color: #17223a; font-size: 14px; }
+input:focus { outline: 2px solid #7399f1; outline-offset: 2px; }
+.code-row { display: flex; gap: 10px; }
+button { cursor: pointer; border-radius: 9px; padding: 12px; font-size: 13px; font-weight: 600; border: 0; }
+button:disabled { cursor: default; opacity: .55; }
+.secondary { flex-shrink: 0; color: #2859ce; background: #e7edfc; }
+.remember { display: flex; gap: 8px; align-items: center; color: #66728a; font-weight: 400; }
+.primary { margin-top: 8px; width: 100%; background: #2859ce; color: white; }
+.status { min-height: 38px; font-size: 13px; line-height: 1.6; margin: 18px 0 2px; }
+.retry { padding: 5px 0; color: #2859ce; background: transparent; font-weight: 400; }
+footer { margin-top: 18px; font-size: 11px; }

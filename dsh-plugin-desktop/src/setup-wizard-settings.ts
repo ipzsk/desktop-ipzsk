@@ -17,6 +17,7 @@ import {
 import { dirname, extname, isAbsolute, resolve } from 'node:path'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { parseDocument } from 'yaml'
+import { IPZSK_ORIGIN, type IpzskModels } from './ipzsk-auth.ts'
 import {
   DEFAULT_MACOS_WINDOW_MATERIAL,
   DEFAULT_WINDOWS_WINDOW_MATERIAL,
@@ -318,6 +319,35 @@ function ensureDocumentDirectory(path: string): void {
   if (!info.isDirectory() || info.isSymbolicLink()) {
     throw invalid('document parent must be a real directory')
   }
+}
+
+/** Configure the existing adapter before Host boot. No credential is persisted. */
+export async function configureIpzskModels(documentPath: string, catalog: IpzskModels): Promise<void> {
+  const path = settingsPath(documentPath)
+  const loaded = loadSettingsDocument(path)
+  const provider = {
+    displayName: 'IPZSK', api: 'openai-completions', baseURL: `${IPZSK_ORIGIN}/v1`,
+    apiKeyEnv: 'IPZSK_DESKTOP_API_KEY',
+    models: catalog.models.map(model => ({ ...model, input: ['text'] })),
+  }
+  const previous = section(loaded.root, 'agent-default-model')
+  const selection = previous.provider === 'ipzsk' && catalog.models.some(model => model.id === previous.model)
+    ? previous : { provider: 'ipzsk', model: catalog.default_model }
+  let output: string
+  if (loaded.format === 'yaml') {
+    loaded.yaml!.setIn(['llm-pi-ai', 'providers', 'ipzsk'], provider)
+    loaded.yaml!.setIn(['agent-default-model'], selection)
+    output = loaded.yaml!.toString()
+  } else {
+    const adapter = section(loaded.root, 'llm-pi-ai')
+    const providers = section(adapter, 'providers')
+    output = JSON.stringify({ ...loaded.root,
+      'llm-pi-ai': { ...adapter, providers: { ...providers, ipzsk: provider } },
+      'agent-default-model': selection,
+    }, undefined, 2) + '\n'
+  }
+  ensureDocumentDirectory(path)
+  await writeFileAtomic(path, output, { mode: DOCUMENT_FILE_MODE, dirMode: DOCUMENT_DIRECTORY_MODE })
 }
 
 /** Read defaults or validated current values from the exact prepared settings file. */

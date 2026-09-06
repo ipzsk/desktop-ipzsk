@@ -1,6 +1,11 @@
 /** DSH Desktop executable: minimal Electron bootstrap around the Host Cordis root. */
 
 import { app, crashReporter, safeStorage, shell } from 'electron'
+import { IpzskAuth } from './ipzsk-auth.ts'
+import { IpzskLoginWindow } from './ipzsk-login-window.ts'
+import { ipzskSessionStore } from './ipzsk-session-store.ts'
+import { withIpzskCredential } from './launch-environment.ts'
+import { configureIpzskModels } from './setup-wizard-settings.ts'
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
@@ -140,8 +145,6 @@ import {
   updateDesktopSetupWizardSettings,
   type DesktopSetupWizardSettings,
 } from './setup-wizard-settings.ts'
-import type { DesktopSetupWizardResult } from './setup-wizard-contract.ts'
-import { DesktopSetupWizardWindow } from './setup-wizard-window.ts'
 import { ProfileCreateWindow } from './profile-create-window.ts'
 import { DesktopProfileSelectionWindow } from './profile-selection-window.ts'
 import { showDesktopDialog } from './desktop-dialog-window.ts'
@@ -198,7 +201,6 @@ import {
   recoverOversizedSessionProjectionCache,
   type SessionProjectionCacheRecoveryResult,
 } from './session-projcache-recovery.ts'
-import { windowsSupportsMica } from './window-material.ts'
 import {
   DESKTOP_APP_ID,
   DESKTOP_PACKAGE_NAME,
@@ -415,7 +417,7 @@ async function start(): Promise<void> {
   let logSink: LogFileSink | undefined
   let startupRecoveryController: DesktopStartupRecoveryController | undefined
   let startupRecoveryWindow: DesktopStartupRecoveryWindow | undefined
-  let setupWizardWindow: DesktopSetupWizardWindow | undefined
+  let ipzskLoginWindow: IpzskLoginWindow | undefined
   let profileCompatibilityCreateWindow: ProfileCreateWindow | undefined
   let profileSelectionWindow: DesktopProfileSelectionWindow | undefined
   let startupRecoveryConfigurationPaths: DesktopStartupRecoveryConfigurationPaths | undefined
@@ -616,16 +618,16 @@ async function start(): Promise<void> {
   }
 
   const showPreHostSurface = (): boolean => {
+    if (ipzskLoginWindow !== undefined) {
+      ipzskLoginWindow.show()
+      return true
+    }
     if (profileCompatibilityCreateWindow !== undefined) {
       profileCompatibilityCreateWindow.open()
       return true
     }
     if (profileSelectionWindow !== undefined) {
       profileSelectionWindow.show()
-      return true
-    }
-    if (setupWizardWindow !== undefined) {
-      setupWizardWindow.show()
       return true
     }
     if (startupRecoveryWindow !== undefined) {
@@ -648,6 +650,29 @@ async function start(): Promise<void> {
   })
   try {
     await app.whenReady()
+    // Authenticate before any profile, Host runtime, or LAN listener is started.
+    const ipzskAuth = new IpzskAuth(ipzskSessionStore(join(desktopUserDataDir, 'ipzsk', 'session.enc')))
+    ipzskLoginWindow = new IpzskLoginWindow(ipzskAuth)
+    const ipzskCustomer = await ipzskLoginWindow.run()
+    ipzskLoginWindow = undefined
+    if (ipzskCustomer === undefined) {
+      await shutdown.request(0)
+      return
+    }
+    const ipzskAccountMenu = runtime.registerTrayItem({
+      group: 'tools', order: -100,
+      label: () => `IPZSK · ${ipzskCustomer.email}`,
+      invoke() {},
+      submenu: () => [{
+        label: () => '退出 IPZSK 登录并关闭应用',
+        async invoke() {
+          try { await ipzskAuth.signOut() } catch {
+            // Local credentials were cleared; do not keep the workspace open.
+          } finally { await shutdown.request(0) }
+        },
+      }],
+    })
+    generation.own(() => { ipzskAccountMenu.dispose() })
     startupStage = 'shell-environment'
     lifecycleRecorder.transitionStartupStage(startupStage)
     if (process.platform === 'win32') app.setAppUserModelId(DESKTOP_APP_ID)
@@ -718,7 +743,7 @@ async function start(): Promise<void> {
       homeDir = dataDirectoryLocation.homeDir
     }
     process.env.DSH_HOME = homeDir
-    const desktopLaunchEnvironment = withDesktopDshHome(environment, homeDir)
+    const desktopLaunchEnvironment = withIpzskCredential(withDesktopDshHome(environment, homeDir), () => ipzskAuth.credential())
     const projectionCacheRecovery = recoverOversizedSessionProjectionCache(homeDir)
     if (projectionCacheRecovery.status === 'quarantined') {
       sessionProjectionCacheRecovery = projectionCacheRecovery
@@ -1223,73 +1248,8 @@ async function start(): Promise<void> {
       ? readDesktopSetupWizardState(marketUserDataDir, prepared.profile.dir)
       : undefined
     if (safeModePaths === undefined && desktopSetupWizardRequired(setupWizardState, setupWizardVersions)) {
-      const setupSettings = readDesktopSetupWizardSettings(prepared.settingsDocument)
-      setupWizardWindow = new DesktopSetupWizardWindow({
-        locale: desktopLocaleFromLanguageTag(app.getLocale()),
-        input: {
-          appVersion,
-          profileName: activeProfileName,
-          platform: runtime.platform,
-          micaSupported: process.platform === 'win32' && windowsSupportsMica(runtime.windowsBuild),
-          ...setupSettings,
-          market: marketSelection.requested,
-        },
-      })
-      let setupResult: DesktopSetupWizardResult
-      try {
-        setupResult = await setupWizardWindow.run()
-      } finally {
-        setupWizardWindow = undefined
-      }
-      if (setupResult.action === 'quit') {
-        startupRecoveryController?.dispose()
-        startupRecoveryController = undefined
-        await shutdown.request(0)
-        return
-      }
-      if (setupResult.action === 'skip') {
-        await completeOrSkipDesktopSetupWizard(
-          marketUserDataDir,
-          prepared.profile.dir,
-          'skipped',
-          setupWizardVersions,
-        )
-      } else {
-        profilePreferences = await writeDesktopProfilePreferences(
-          marketUserDataDir,
-          prepared.profile.dir,
-          desktopProfilePreferencesFromSettings(
-            setupResult.selection,
-            setupResult.selection.notifications,
-            setupResult.selection.market,
-          ),
-        )
-        await updateDesktopSetupWizardSettings(prepared.settingsDocument, {
-          mode: setupResult.selection.mode,
-          macosMaterial: setupResult.selection.macosMaterial,
-          windowsMaterial: setupResult.selection.windowsMaterial,
-          openBrowser: setupResult.selection.openBrowser,
-          networkExposure: setupResult.selection.networkExposure,
-          notifications: setupResult.selection.notifications,
-        })
-        await selectDesktopMarketProvider(marketUserDataDir, setupResult.selection.market)
-        marketSelection = readDesktopMarketStateForUserData(marketUserDataDir)
-        prepared = prepareDesktopProfile(
-          process.env.DSH_TELEMETRY_DISABLED,
-          homeDir,
-          process.platform,
-          activeProfileName,
-          pluginManagementStatePath,
-          marketSelection,
-          preparationHooks,
-        )
-        await completeOrSkipDesktopSetupWizard(
-          marketUserDataDir,
-          prepared.profile.dir,
-          'completed',
-          setupWizardVersions,
-        )
-      }
+      // IPZSK is ready after login; retain shipped preferences without a setup form.
+      await completeOrSkipDesktopSetupWizard(marketUserDataDir, prepared.profile.dir, 'skipped', setupWizardVersions)
     }
     if (profileCheckpoint === undefined) {
       try {
@@ -1434,6 +1394,7 @@ async function start(): Promise<void> {
       await profilePreferencesWriteTail
     }
     startupStage = 'host-boot'
+    await configureIpzskModels(prepared.settingsDocument, ipzskAuth.models())
     lifecycleRecorder.transitionStartupStage(startupStage)
     const releasePackageResolver = installProfilePackageResolver(prepared.bareModuleBaseUrl)
     const ctx = await boot(
