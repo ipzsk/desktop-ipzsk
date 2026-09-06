@@ -201,6 +201,14 @@ try {
   if (agentPresets.defaultId !== 'minimal') {
     throw new Error(`assembled Windows profile selected unexpected default ${agentPresets.defaultId}`)
   }
+  const standardPreset = await agentPresets.resolve('standard')
+  if (standardPreset.broken) throw new Error(standardPreset.broken)
+  const standardAgent = await ctx.agents.create({
+    sessionId: 'ipzsk-standard-preset-smoke',
+    meta: { cwd: home, agentPreset: 'standard' },
+    setup: async agentCtx => { await agentPresets.mount(agentCtx, 'standard') },
+  })
+  await standardAgent.dispose()
   const minimalPreset = await agentPresets.resolve('minimal')
   if (minimalPreset.id !== 'minimal') {
     throw new Error(`assembled Windows profile remapped minimal preset to ${minimalPreset.id}`)

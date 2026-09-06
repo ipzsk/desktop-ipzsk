@@ -399,6 +399,11 @@ async function mirrorDesktopProfilePreferences(
 
 /** Start one Electron process and leave lifetime to the mounted desktop plugin. */
 async function start(): Promise<void> {
+  // Fork-owned identity must be set before the single-instance lock or any
+  // persistence is opened. Never adopt the upstream application's home.
+  app.setName(DESKTOP_PRODUCT_NAME)
+  app.setPath('userData', join(app.getPath('appData'), DESKTOP_PRODUCT_NAME))
+  process.env.DSH_HOME = join(app.getPath('userData'), 'dsh-home')
   if (!app.requestSingleInstanceLock()) {
     app.quit()
     return

@@ -315,8 +315,8 @@
     "vitest": "4.1.8"
   },
   "build": {
-    "appId": "ai.deepseek.dsh.desktop",
-    "productName": "DSH Desktop",
+    "appId": "com.ipzsk.desktop",
+    "productName": "IPZSK Desktop",
     "asar": {
       "smartUnpack": true
     },
@@ -403,7 +403,7 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "differentialPackage": false,
-      "shortcutName": "DSH Desktop",
+      "shortcutName": "IPZSK Desktop",
       "uninstallerIcon": "build/app-icon.ico",
       "useZip": false,
       "artifactName": "DSH-Desktop-${version}-${arch}-Setup.${ext}"

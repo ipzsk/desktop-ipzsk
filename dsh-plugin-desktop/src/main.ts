@@ -16,7 +16,6 @@ import {
   type FailLoudProcess,
 } from '@deepseek-ai/dsh-app-boot'
 import { provideCmdline } from '@deepseek-ai/dsh-cmdline'
-import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 import { DSH_LAUNCH_ENVIRONMENT_KEY } from '@deepseek-ai/dsh-launch-environment'
 import type {} from '@deepseek-ai/dsh-web-app'
 import type {} from '@deepseek-ai/dsh-client-connection'
@@ -372,6 +371,11 @@ async function mirrorDesktopProfilePreferences(
 
 /** Start one Electron process and leave lifetime to the mounted desktop plugin. */
 async function start(): Promise<void> {
+  // Fork-owned identity must be set before the single-instance lock or any
+  // persistence is opened. Never adopt the upstream application's home.
+  app.setName(DESKTOP_PRODUCT_NAME)
+  app.setPath('userData', join(app.getPath('appData'), DESKTOP_PRODUCT_NAME))
+  process.env.DSH_HOME = join(app.getPath('userData'), 'dsh-home')
   if (!app.requestSingleInstanceLock()) {
     app.quit()
     return
@@ -656,7 +660,7 @@ async function start(): Promise<void> {
     })
     for (const [name, value] of Object.entries(shellEnvironmentResolution.updates)) process.env[name] = value
     const profileUserDataDir = safeModePaths?.userDataDir ?? desktopUserDataDir
-    const homeDir = safeModePaths?.homeDir ?? resolveDshHome()
+    const homeDir = safeModePaths?.homeDir ?? join(desktopUserDataDir, 'dsh-home')
     if (safeModePaths !== undefined) process.env.DSH_HOME = homeDir
     prepareSafeMode = safeModePaths === undefined
       ? () => {

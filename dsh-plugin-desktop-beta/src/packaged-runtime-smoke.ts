@@ -13,6 +13,8 @@ import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { discoverPresets } from '@deepseek-ai/dsh-agent-presets'
+import { shippedPresetRoot } from './profile.ts'
 import { rgPath } from '@vscode/ripgrep'
 import AdmZip from 'adm-zip'
 import { materializeLegacyPresetAliases } from './agent-preset-compat.ts'
@@ -168,6 +170,11 @@ try {
 
   const releaseResolver = installProfilePackageResolver(pathToFileURL(profileManifestPath).href)
   try {
+    const standard = (await discoverPresets(
+      [{ path: shippedPresetRoot(), trust: 'system' }],
+      pathToFileURL(profileManifestPath).href,
+    )).find(preset => preset.id === 'standard')
+    assert(standard && !standard.broken, `cannot load standard preset: ${standard?.broken}`)
     const profileRequire = createRequire(profileManifestPath)
     const installRequire = createRequire(installAnchor)
     const consumer = profileRequire('dsh-packaged-cjs-consumer') as {

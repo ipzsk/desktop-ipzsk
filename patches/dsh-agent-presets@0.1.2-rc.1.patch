@@ -1,0 +1,29 @@
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -1,4 +1,4 @@
+-import { isBuiltin } from "node:module";
++import { createRequire, isBuiltin } from "node:module";
+ import { chmod, cp, readFile, readdir, rm, stat } from "node:fs/promises";
+ import { evaluate, isJsExpr } from "@deepseek-ai/cordis-plugin-loader";
+ import z from "@deepseek-ai/schemastery";
+@@ -286,7 +286,19 @@
+ */
+ async function rowResolves(row, presetBase, harnessBase) {
+ 	if (row.kind === "builtin") return true;
+-	if (row.kind === "package") return isBuiltin(row.specifier) || packageInstalled(row.specifier, harnessBase);
++	if (row.kind === "package") {
++		if (isBuiltin(row.specifier) || packageInstalled(row.specifier, harnessBase)) return true;
++		// Desktop keeps bundled plugins in ASAR and resolves profile imports via
++		// its registered hooks. Use that same parent-aware resolver for discovery,
++		// without executing plugins or accepting packages from an unrelated base.
++		if (globalThis[Symbol.for("dsh-plugin-desktop.asar-module-resolver")] > 0) {
++			try {
++				createRequire(harnessBase).resolve(row.specifier);
++				return true;
++			} catch { return false; }
++		}
++		return false;
++	}
+ 	return await isFile(fileURLToPath(row.kind === "file" ? new URL(row.specifier) : new URL(row.specifier, presetBase)));
+ }
+ /**

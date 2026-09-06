@@ -319,8 +319,8 @@
     "vitest": "4.1.8"
   },
   "build": {
-    "appId": "ai.deepseek.dsh.desktop.beta",
-    "productName": "DSH Desktop Beta",
+    "appId": "com.ipzsk.desktop.beta",
+    "productName": "IPZSK Desktop Beta",
     "asar": {
       "smartUnpack": true
     },
@@ -408,7 +408,7 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "differentialPackage": false,
-      "shortcutName": "DSH Desktop Beta",
+      "shortcutName": "IPZSK Desktop Beta",
       "useZip": false,
       "artifactName": "DSH-Desktop-Beta-${version}-${arch}-Setup.${ext}"
     },

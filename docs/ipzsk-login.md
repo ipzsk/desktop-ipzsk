@@ -31,10 +31,15 @@
 
 本次源码变更不包含安装包的公开发布或开发者签名公证。
 
+## 独立客户端与插件修复（2026-09-07）
+
+- 应用名为 IPZSK Desktop / IPZSK Desktop Beta，应用 ID 为 com.ipzsk.desktop / com.ipzsk.desktop.beta。
+- 在获取单实例锁前设置独立 userData，默认 Harness home 位于其中的 dsh-home。macOS 正式版路径为 `~/Library/Application Support/IPZSK Desktop`。不自动读取或迁移旧 DSH 的登录、会话和配置；旧应用数据保留。
+- standard 预设的 23 项是内置功能模块。原发现逻辑只检查实体 node_modules，遗漏桌面 Profile 到安装包的解析钩子。两条发布通道使用 Yarn patch 修复发现逻辑，同时继续拒绝缺失插件和不属于当前 Profile 的解析。
+- 正式版 41 项、Beta 46 项相关测试通过（各 1 项平台跳过），两套类型检查通过；正式版完整 Host 的 standard 会话创建与释放通过；实际 Electron ASAR 运行检查通过，包含 standard 预设发现。
+
 ## 本机应用包
 
-已生成 Apple Silicon Mac ZIP：`dsh-plugin-desktop/dist/DSH Desktop-2.0.5-arm64-mac.zip`，以及同目录 `mac-arm64/DSH Desktop.app`。两套源码构建与类型检查通过；ZIP 构建和 Electron fuses 验收通过。此包未做开发者签名/公证，没有公开发布。
+Apple Silicon Mac ZIP：`dsh-plugin-desktop/dist/IPZSK Desktop-2.0.5-arm64-mac.zip`；应用目录为 `dsh-plugin-desktop/dist/mac-arm64/IPZSK Desktop.app`。ZIP 与 Electron fuses 验收通过。此包未做开发者签名/公证，没有公开发布。
 
-现有 `package:dir` 在完成应用组装后，其架构检测回调无法识别目录目标；使用同一未签名打包入口及显式 `--mac zip --arm64` 成功完成。没有修改打包脚本或关闭验证。
-
-图形验收尝试受到当前 `/Applications/DSH Desktop.app` 实例占用的单实例锁影响，未关闭用户现有应用。使用新包前需先退出旧版；真实账户在桌面窗口中的端到端操作尚未人工验收。正式接口的密码登录、模型调用与退出撤销，以及桌面实际适配器链路已分别验证。
+使用现有未签名打包入口及显式 `--mac zip --arm64`；没有关闭打包验证。新应用已独立启动至 IPZSK 登录窗口。未代替用户在图形界面输入真实账户密码；真实服务端登录与模型调用的验收记录见上文。

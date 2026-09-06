@@ -89,7 +89,7 @@ describe('published package surface', () => {
 
   it('keeps Safe Mode out of the normal DSH home and Desktop state', () => {
     expect(main).toContain('const profileUserDataDir = safeModePaths?.userDataDir ?? desktopUserDataDir')
-    expect(main).toContain('const homeDir = safeModePaths?.homeDir ?? resolveDshHome()')
+    expect(main).toContain('const homeDir = safeModePaths?.homeDir ?? join(desktopUserDataDir, \'dsh-home\')')
     expect(main).toContain('if (safeModePaths !== undefined) process.env.DSH_HOME = homeDir')
     expect(main).toContain('withIpzskCredential(withDesktopDshHome(environment, homeDir), () => ipzskAuth.credential())')
     expect(main).toContain('hostCtx.provide(DSH_LAUNCH_ENVIRONMENT_KEY, desktopLaunchEnvironment)')
@@ -733,8 +733,8 @@ describe('published package surface', () => {
   it('fixes the installed application identity', () => {
     expect(workspaceManifest.version).toBeUndefined()
     expect(manifest.version).toBe('2.0.5')
-    expect(manifest.build?.productName).toBe('DSH Desktop')
-    expect(manifest.build?.appId).toBe('ai.deepseek.dsh.desktop')
+    expect(manifest.build?.productName).toBe('IPZSK Desktop')
+    expect(manifest.build?.appId).toBe('com.ipzsk.desktop')
     expect(manifest.build?.asar).toEqual({ smartUnpack: true })
     expect(manifest.build).not.toHaveProperty('asarUnpack')
     expect(manifest.build?.mac?.asarUnpack).toEqual([
@@ -797,7 +797,7 @@ describe('published package surface', () => {
       createDesktopShortcut: true,
       createStartMenuShortcut: true,
       differentialPackage: false,
-      shortcutName: 'DSH Desktop',
+      shortcutName: 'IPZSK Desktop',
       uninstallerIcon: 'build/app-icon.ico',
       useZip: false,
       artifactName: 'DSH-Desktop-${version}-${arch}-Setup.${ext}',

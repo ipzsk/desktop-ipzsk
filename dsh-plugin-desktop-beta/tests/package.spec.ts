@@ -101,8 +101,8 @@ describe('published package surface', () => {
   it('sets a distinct Beta process identity before taking the single-instance lock', () => {
     expect(productIdentity).toContain("packageName: 'dsh-plugin-desktop-beta'")
     expect(productIdentity).toContain("packageName: 'dsh-plugin-desktop'")
-    expect(productIdentity).toContain("productName: 'DSH Desktop Beta'")
-    expect(productIdentity).toContain("appId: 'ai.deepseek.dsh.desktop.beta'")
+    expect(productIdentity).toContain("productName: 'IPZSK Desktop Beta'")
+    expect(productIdentity).toContain("appId: 'com.ipzsk.desktop.beta'")
     expect(productIdentity).toContain('DESKTOP_PRODUCT_IDENTITY = DESKTOP_RELEASE_IDENTITIES.beta')
     expect(productIdentity).toContain('OTHER_DESKTOP_PRODUCT_IDENTITY = DESKTOP_RELEASE_IDENTITIES.stable')
     expect(main).toContain('app.setAppUserModelId(DESKTOP_APP_ID)')
@@ -817,8 +817,8 @@ describe('published package surface', () => {
     })
     expect(manifest.bin).not.toHaveProperty('dsh-desktop')
     expect(manifest.bin).not.toHaveProperty('dsh-plugin-desktop')
-    expect(manifest.build?.productName).toBe('DSH Desktop Beta')
-    expect(manifest.build?.appId).toBe('ai.deepseek.dsh.desktop.beta')
+    expect(manifest.build?.productName).toBe('IPZSK Desktop Beta')
+    expect(manifest.build?.appId).toBe('com.ipzsk.desktop.beta')
     expect(manifest.build?.asar).toEqual({ smartUnpack: true })
     expect(manifest.build).not.toHaveProperty('asarUnpack')
     expect(manifest.build?.mac?.asarUnpack).toEqual([
@@ -880,7 +880,7 @@ describe('published package surface', () => {
       createDesktopShortcut: true,
       createStartMenuShortcut: true,
       differentialPackage: false,
-      shortcutName: 'DSH Desktop Beta',
+      shortcutName: 'IPZSK Desktop Beta',
       useZip: false,
       artifactName: 'DSH-Desktop-Beta-${version}-${arch}-Setup.${ext}',
     })
