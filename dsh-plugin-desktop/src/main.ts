@@ -993,11 +993,21 @@ async function start(): Promise<void> {
     startupStage = 'profile-composition'
     lifecycleRecorder.transitionStartupStage(startupStage)
     const lanAddresses = desktopLanAddresses()
-    const legacyMarketSelection = readDesktopMarketStateForUserData(marketUserDataDir)
+    let legacyMarketSelection = readDesktopMarketStateForUserData(marketUserDataDir)
     let profilePreferences = readDesktopProfilePreferences(marketUserDataDir, activeProfileDir)
     let marketSelection = profilePreferences === undefined
       ? legacyMarketSelection
       : desktopProfileMarketSnapshot(profilePreferences.market)
+    // IPZSK ships a first-class marketplace; upgrade valid old 'disabled' choices.
+    // Recovery and corrupt-state fail-closed behavior remain controlled separately.
+    if (safeModePaths === undefined && marketSelection.requested === 'disabled'
+      && !marketSelection.legacyDefaulted) {
+      legacyMarketSelection = await selectDesktopMarketProvider(marketUserDataDir, 'community-market')
+      marketSelection = legacyMarketSelection
+      if (profilePreferences) profilePreferences = await writeDesktopProfilePreferences(
+        marketUserDataDir, activeProfileDir, { ...profilePreferences, market: 'community-market' },
+      )
+    }
     const preparationHooks = {
       lanAddresses,
       onSettingsDocumentResolved: (settingsDocument: string) => {
@@ -1374,6 +1384,7 @@ async function start(): Promise<void> {
         )
         hostCtx.provide('desktopSettingsController', new DesktopSettingsController({
           profiles: hostCtx.desktopProfiles,
+          account: { email: ipzskCustomer.email },
           readMarket,
           readWeb: () => {
             const lan = lanHttps.snapshot()

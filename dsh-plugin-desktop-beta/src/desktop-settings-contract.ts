@@ -83,6 +83,7 @@ export interface DesktopSettingsWebView {
 
 /** Complete renderer-safe Desktop settings state. */
 export interface DesktopSettingsResponse {
+  readonly account?: { readonly email: string }
   /** Profile backing the currently running generation. */
   readonly current: string
   /** Fresh profile discovery without filesystem paths or manifest details. */

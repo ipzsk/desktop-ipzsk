@@ -122,12 +122,12 @@ export function DesktopOwnedFrame({
       style={{ gridTemplateColumns: `${columns.sidebar}px minmax(0, 1fr) ${columns.details}px` }}
     >
       {mode === 'advanced' && platform === 'darwin' && <div className="dshDesktopMacCaptionRow" aria-hidden="true" />}
-      <aside className="dshDesktopSidebarSurface">
+      <aside className="dshDesktopSidebarSurface" data-pane="sidebar">
         <div className="dshDesktopUpstreamSidebar">
           {renderSlot('sidebar', { collapsed, width: sidebarOwnerWidth })}
         </div>
       </aside>
-      <main className="dshDesktopConversationSurface">{renderSlot('conversation', {})}</main>
+      <main className="dshDesktopConversationSurface" data-pane="conversation">{renderSlot('conversation', {})}</main>
       <aside className="dshDesktopDetailsSurface">
         <SessionProvider>{renderSlot('details', {})}</SessionProvider>
       </aside>

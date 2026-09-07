@@ -658,3 +658,10 @@ describe('Desktop settings Slot registration', () => {
     expect(scope.set).toHaveBeenCalledWith('mode', 'extended')
   })
 })
+
+ describe('IPZSK account projection', () => {
+  it('only exposes the email and rejects malformed account data', () => {
+    expect(parseDesktopSettingsView({ ...VIEW, account: { email: 'member@example.com', token: 'must-not-leak' } }).account).toEqual({ email: 'member@example.com' })
+    expect(() => parseDesktopSettingsView({ ...VIEW, account: { email: 123 } })).toThrow()
+  })
+})

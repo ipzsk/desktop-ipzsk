@@ -269,12 +269,11 @@ const MARKET_OPTIONS: readonly {
   title: DesktopSettingsLocaleKey
   body: DesktopSettingsLocaleKey
 }[] = [
-  { id: 'disabled', title: 'marketDisabled', body: 'marketDisabledBody' },
   { id: 'community-market', title: 'communityMarket', body: 'communityMarketBody' },
   { id: 'dsh-market', title: 'dshMarket', body: 'dshMarketBody' },
 ]
 
-const COMMUNITY_MARKET_URL = 'https://github.com/anywhere-labs/deepseek-harness-desktop/tree/master/dsh-community-market'
+const COMMUNITY_MARKET_URL = 'https://github.com/JayceHuang/ipzsk-dsh-desktop/tree/master/dsh-community-market'
 const DSH_MARKET_URL = 'https://github.com/dsh-market/dsh-market'
 const AWESOME_DSH_PLUGIN_URL = 'https://github.com/awesome-dsh-plugin/awesome-dsh-plugin'
 

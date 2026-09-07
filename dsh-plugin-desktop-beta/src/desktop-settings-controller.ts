@@ -26,6 +26,7 @@ import type {
 
 /** Launcher capabilities used without exposing their filesystem roots. */
 export interface DesktopSettingsControllerBootstrap {
+  readonly account?: { readonly email: string }
   /** Generation-scoped profile service. */
   readonly profiles: Pick<DesktopProfiles, 'current' | 'list' | 'create' | 'prepareSelection'>
     & Partial<Pick<DesktopProfiles, 'canDelete' | 'delete'>>
@@ -100,6 +101,7 @@ export class DesktopSettingsController {
   read(): DesktopSettingsResponse {
     const web = this.bootstrap.readWeb()
     return Object.freeze({
+      ...(this.bootstrap.account ? { account: Object.freeze({ email: this.bootstrap.account.email }) } : {}),
       current: this.bootstrap.profiles.current.name,
       profiles: Object.freeze(
         this.bootstrap.profiles.list().map(profile => projectDesktopSettingsProfile(

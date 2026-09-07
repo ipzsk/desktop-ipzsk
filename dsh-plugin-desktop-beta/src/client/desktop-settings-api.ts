@@ -55,6 +55,7 @@ export interface DesktopWebView {
 
 /** Complete launcher-owned settings projection. */
 export interface DesktopSettingsView {
+  readonly account?: { readonly email: string }
   readonly current: string
   readonly profiles: readonly DesktopProfileView[]
   readonly market: DesktopMarketView
@@ -197,6 +198,7 @@ function parseLanCaFingerprint(value: unknown): string | null {
 /** Validate the bounded settings projection before it reaches React state. */
 export function parseDesktopSettingsView(value: unknown): DesktopSettingsView {
   if (!isObject(value)
+    || (value.account !== undefined && (!isObject(value.account) || typeof value.account.email !== 'string' || value.account.email.length > 254))
     || typeof value.current !== 'string'
     || value.current.length === 0
     || value.current.length > MAX_PROFILE_NAME_LENGTH
@@ -241,6 +243,7 @@ export function parseDesktopSettingsView(value: unknown): DesktopSettingsView {
     throw new Error('dsh-plugin-desktop: inconsistent LAN HTTPS error in settings response')
   }
   return Object.freeze({
+    ...(isObject(value.account) ? { account: Object.freeze({ email: value.account.email as string }) } : {}),
     current: value.current,
     profiles: Object.freeze(profiles),
     market: Object.freeze({
