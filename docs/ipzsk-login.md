@@ -43,3 +43,9 @@
 Apple Silicon Mac ZIP：`dsh-plugin-desktop/dist/IPZSK Desktop-2.0.5-arm64-mac.zip`；应用目录为 `dsh-plugin-desktop/dist/mac-arm64/IPZSK Desktop.app`。ZIP 与 Electron fuses 验收通过。此包未做开发者签名/公证，没有公开发布。
 
 使用现有未签名打包入口及显式 `--mac zip --arm64`；没有关闭打包验证。新应用已独立启动至 IPZSK 登录窗口。未代替用户在图形界面输入真实账户密码；真实服务端登录与模型调用的验收记录见上文。
+
+## GPT 5.6 Sol 工具请求兼容修复（2026-09-07）
+
+上游的 Chat Completions 接口要求 GPT 5.6 Sol 携带函数工具时显式发送 `reasoning_effort: "none"`。客户端在自动模型配置中为该模型声明 `reasoningEfforts: { off: "none" }`，用 Yarn patch 允许现有适配器表达仅支持 off 的配置。界面只提供 off，不伪造可用的推理档位；GPT-4o mini 不受影响。正式版和 Beta 均应用此修复，启动时自动覆盖已有 IPZSK 模型配置，无需用户修改设置。
+
+两套真实适配器测试覆盖两个模型的有工具/无工具请求，检查实际请求 JSON 与能力目录。上游最小工具请求已验证返回 200 和完整 SSE。新的 Apple Silicon 包输出到 `dsh-plugin-desktop/dist/tools-fix/IPZSK Desktop-2.0.5-arm64-mac.zip`，与上一包分开保存；需退出正在运行的旧版并打开新包中的应用。

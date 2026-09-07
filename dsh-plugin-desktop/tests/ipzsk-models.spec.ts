@@ -48,7 +48,7 @@ describe('automatic IPZSK model connection', () => {
     expect(parse(await readFile(path, 'utf8'))['agent-default-model'].model).toBe('gpt-4o-mini')
   })
 
-  it('loads the installed adapter from automatic settings and sends an authenticated streaming request', async () => {
+  it.each(catalog.models.flatMap(model => [false, true].map(withTools => ({ model: model.id, withTools }))))('sends compatible authenticated requests for $model withTools=$withTools', async ({ model, withTools }) => {
     const path = await settings('yaml')
     await configureIpzskModels(path, catalog)
     const request = vi.fn(async () => new Response([
@@ -69,8 +69,11 @@ describe('automatic IPZSK model connection', () => {
       expect(ctx.agentDefaultModel.currentSelection()).toEqual({ provider: 'ipzsk', model: 'gpt-5.6-sol' })
       const adapter = ctx.plugin(LlmPiAi, {}); mounts.push(adapter); await adapter
       expect((await ctx.llm.listModels('ipzsk')).map(model => model.id)).toEqual(catalog.models.map(model => model.id))
+      const sol = await ctx.llm.resolveModelInfo('ipzsk', 'gpt-5.6-sol')
+      expect(sol?.reasoning?.efforts.map(effort => effort.id)).toEqual(['off'])
       const chunks = []
-      for await (const chunk of ctx.llm.stream({ provider: 'ipzsk', model: 'gpt-5.6-sol',
+      for await (const chunk of ctx.llm.stream({ provider: 'ipzsk', model,
+        ...(withTools ? { tools: [{ name: 'test_tool', description: 'Test tool', parameters: { type: 'object', properties: {} } }] } : {}),
         messages: [createUserMessage({ content: [{ type: 'text', text: 'hi' }], source: { kind: 'plugin', plugin: 'test' } })],
         signal: AbortSignal.timeout(5000),
       })) chunks.push(chunk)
@@ -78,7 +81,12 @@ describe('automatic IPZSK model connection', () => {
       const [url, init] = request.mock.calls[0] as unknown as [string, RequestInit]
       expect(String(url)).toBe('https://api.ipzsk.com/v1/chat/completions')
       expect(new Headers(init.headers).get('authorization')).toBe('Bearer ' + token)
-      expect(JSON.parse(String(init.body))).toMatchObject({ model: 'gpt-5.6-sol', stream: true })
+      const payload = JSON.parse(String(init.body))
+      expect(payload).toMatchObject({ model, stream: true })
+      if (model === 'gpt-5.6-sol') expect(payload.reasoning_effort).toBe('none')
+      else expect(payload).not.toHaveProperty('reasoning_effort')
+      if (withTools) expect(payload.tools[0].function.name).toBe('test_tool')
+      else expect(payload).not.toHaveProperty('tools')
       token = ''
       expect(process.env.IPZSK_DESKTOP_API_KEY).toBeUndefined()
     } finally { for (const mount of mounts.reverse()) await mount.dispose() }

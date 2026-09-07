@@ -328,7 +328,11 @@ export async function configureIpzskModels(documentPath: string, catalog: IpzskM
   const provider = {
     displayName: 'IPZSK', api: 'openai-completions', baseURL: `${IPZSK_ORIGIN}/v1`,
     apiKeyEnv: 'IPZSK_DESKTOP_API_KEY',
-    models: catalog.models.map(model => ({ ...model, input: ['text'] })),
+    models: catalog.models.map(model => ({
+      ...model, input: ['text'],
+      // This Chat Completions route requires explicit non-reasoning mode for tools.
+      ...(model.id === 'gpt-5.6-sol' ? { reasoningEfforts: { off: 'none' } } : {}),
+    })),
   }
   const previous = section(loaded.root, 'agent-default-model')
   const selection = previous.provider === 'ipzsk' && catalog.models.some(model => model.id === previous.model)

@@ -1,0 +1,10 @@
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -552,7 +552,6 @@
+ 	for (const [level, wire] of declared) if (wire === null) {
+ 		if (level !== "off") invalid(provider, `model "${entry.id}" reasoningEfforts.${level} needs the wire value dispatch should send; only "off" may leave it empty`);
+ 	} else if (wire.length === 0) invalid(provider, `model "${entry.id}" reasoningEfforts.${level} must not be an empty string`);
+-	if (!declared.some(([level]) => level !== "off")) invalid(provider, `model "${entry.id}" reasoningEfforts offers no level beyond "off"; declare a thinking level, or set reasoningEfforts to false for a non-reasoning model`);
+ 	const map = {};
+ 	for (const level of THINKING_LEVELS) {
+ 		const wire = efforts[level];
