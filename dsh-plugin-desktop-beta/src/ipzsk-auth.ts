@@ -1,3 +1,4 @@
+import { parseIpzskPluginConfigs, type IpzskPluginConfig } from './ipzsk-plugin-config.ts'
 /** Account login and automatic, session-bound desktop model access. */
 export const IPZSK_ORIGIN = 'https://api.ipzsk.com'
 
@@ -9,7 +10,8 @@ export interface IpzskSessionStore {
 }
 
 export interface IpzskModel { readonly id: string; readonly name: string; readonly contextWindow: number; readonly maxTokens: number }
-export interface IpzskModels { readonly default_model: string; readonly models: IpzskModel[] }
+export interface IpzskImageModel { readonly id: string; readonly name: string; readonly sizes: string[]; readonly default_size: string }
+export interface IpzskModels { readonly default_model: string; readonly models: IpzskModel[]; readonly image_models?: IpzskImageModel[]; readonly plugin_configs?: IpzskPluginConfig[] }
 
 export interface IpzskCustomer { readonly id: string; readonly email: string }
 
@@ -117,7 +119,7 @@ export class IpzskAuth {
     }
     if (this.remember) this.store.write(this.cookie)
     const config = await this.api('/api/me/desktop/bootstrap', {}) as {
-      token?: unknown; default_model?: unknown; models?: IpzskModel[]
+      token?: unknown; default_model?: unknown; models?: IpzskModel[]; image_models?: IpzskImageModel[]; plugin_configs?: unknown
     }
     if (typeof config.token !== 'string' || !/^ipz_[A-Za-z0-9_-]{43}$/u.test(config.token)
       || typeof config.default_model !== 'string' || !Array.isArray(config.models) || !config.models.length
@@ -127,8 +129,13 @@ export class IpzskAuth {
       || !config.models.some(model => model.id === config.default_model)) {
       throw new Error('后台模型配置异常，请联系管理员。')
     }
+    if (config.image_models !== undefined && (!Array.isArray(config.image_models) || config.image_models.some(model =>
+      !model || typeof model.id !== 'string' || !/^[a-zA-Z0-9._-]{1,128}$/u.test(model.id)
+      || typeof model.name !== 'string' || !Array.isArray(model.sizes) || !model.sizes.length
+      || model.sizes.some(size => typeof size !== 'string' || size.length > 32)
+      || !model.sizes.includes(model.default_size)))) throw new Error('后台图片模型配置异常。')
     this.modelToken = config.token
-    this.modelSettings = { default_model: config.default_model, models: config.models }
+    this.modelSettings = { default_model: config.default_model, models: config.models, image_models: config.image_models ?? [], plugin_configs: parseIpzskPluginConfigs(config.plugin_configs) }
     return { id: result.user.id, email: result.user.email }
   }
 

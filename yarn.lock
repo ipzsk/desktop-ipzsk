@@ -4329,50 +4329,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@deepseek-ai/dsh-llm-pi-ai@patch:@deepseek-ai/dsh-llm-pi-ai@file%3Avendor/dsh-runtime/0.1.2-rc.1/deepseek-ai-dsh-llm-pi-ai-0.1.2-rc.1.tgz#./patches/dsh-llm-pi-ai@0.1.2-rc.1.patch::locator=deepseek-harness-desktop%40workspace%3A.":
-  version: 0.1.2-rc.1
-  resolution: "@deepseek-ai/dsh-llm-pi-ai@patch:@deepseek-ai/dsh-llm-pi-ai@file%3Avendor/dsh-runtime/0.1.2-rc.1/deepseek-ai-dsh-llm-pi-ai-0.1.2-rc.1.tgz%23vendor/dsh-runtime/0.1.2-rc.1/deepseek-ai-dsh-llm-pi-ai-0.1.2-rc.1.tgz%3A%3Ahash=9ba6c1&locator=deepseek-harness-desktop%2540workspace%253A.#./patches/dsh-llm-pi-ai@0.1.2-rc.1.patch::version=0.1.2-rc.1&hash=859f4f&locator=deepseek-harness-desktop%40workspace%3A."
-  dependencies:
-    "@deepseek-ai/dsh-brand": "npm:^0.1.2-rc.1"
-    "@deepseek-ai/dsh-util-values": "npm:^0.1.2-rc.1"
-    "@deepseek-ai/schemastery": "npm:^3.18.2"
-    "@earendil-works/pi-ai": "npm:^0.84.2"
-  peerDependencies:
-    "@deepseek-ai/cordis": ^4.0.2
-    "@deepseek-ai/dsh-attachment": ^0.1.2-rc.1
-    "@deepseek-ai/dsh-authorization": ^0.1.2-rc.1
-    "@deepseek-ai/dsh-credentials": ^0.1.2-rc.1
-    "@deepseek-ai/dsh-fs": ^0.1.2-rc.1
-    "@deepseek-ai/dsh-launch-environment": ^0.1.2-rc.1
-    "@deepseek-ai/dsh-llm": ^0.1.2-rc.1
-    "@deepseek-ai/dsh-settings": ^0.1.2-rc.1
-    "@deepseek-ai/dsh-timeout": ^0.1.2-rc.1
-  checksum: 10c0/575e33ead11e998edb8ef013e9e05f1545dbb77d4c006710e9a9cea085d04419007e011e1a09418abacfc523ee9240b3fedf39d7a708d7f28bfac20547d795b4
-  languageName: node
-  linkType: hard
-
-"@deepseek-ai/dsh-llm-pi-ai@patch:@deepseek-ai/dsh-llm-pi-ai@file%3Avendor/dsh-runtime/0.1.3-alpha.1/deepseek-ai-dsh-llm-pi-ai-0.1.3-alpha.1.tgz#./patches/dsh-llm-pi-ai@0.1.3-alpha.1.patch::locator=deepseek-harness-desktop%40workspace%3A.":
-  version: 0.1.3-alpha.1
-  resolution: "@deepseek-ai/dsh-llm-pi-ai@patch:@deepseek-ai/dsh-llm-pi-ai@file%3Avendor/dsh-runtime/0.1.3-alpha.1/deepseek-ai-dsh-llm-pi-ai-0.1.3-alpha.1.tgz%23vendor/dsh-runtime/0.1.3-alpha.1/deepseek-ai-dsh-llm-pi-ai-0.1.3-alpha.1.tgz%3A%3Ahash=61d53e&locator=deepseek-harness-desktop%2540workspace%253A.#./patches/dsh-llm-pi-ai@0.1.3-alpha.1.patch::version=0.1.3-alpha.1&hash=859f4f&locator=deepseek-harness-desktop%40workspace%3A."
-  dependencies:
-    "@deepseek-ai/dsh-brand": "npm:^0.1.3-alpha.1"
-    "@deepseek-ai/dsh-util-values": "npm:^0.1.3-alpha.1"
-    "@deepseek-ai/schemastery": "npm:^3.18.2"
-    "@earendil-works/pi-ai": "npm:^0.84.2"
-  peerDependencies:
-    "@deepseek-ai/cordis": ^4.0.2
-    "@deepseek-ai/dsh-attachment": ^0.1.3-alpha.1
-    "@deepseek-ai/dsh-authorization": ^0.1.3-alpha.1
-    "@deepseek-ai/dsh-credentials": ^0.1.3-alpha.1
-    "@deepseek-ai/dsh-fs": ^0.1.3-alpha.1
-    "@deepseek-ai/dsh-launch-environment": ^0.1.3-alpha.1
-    "@deepseek-ai/dsh-llm": ^0.1.3-alpha.1
-    "@deepseek-ai/dsh-settings": ^0.1.3-alpha.1
-    "@deepseek-ai/dsh-timeout": ^0.1.3-alpha.1
-  checksum: 10c0/cc358ed25c16d20bd5f197ab1d7221d02542c934fd5fb1f307b42836f95b31024064c3678c48a716a898ca24dff72acac0f7e9c6a5c5f26fdf55c16de99c712d
-  languageName: node
-  linkType: hard
-
 "@deepseek-ai/dsh-llm-retry@file:vendor/dsh-runtime/0.1.2-rc.1/deepseek-ai-dsh-llm-retry-0.1.2-rc.1.tgz::locator=deepseek-harness-desktop%40workspace%3A.":
   version: 0.1.2-rc.1
   resolution: "@deepseek-ai/dsh-llm-retry@file:vendor/dsh-runtime/0.1.2-rc.1/deepseek-ai-dsh-llm-retry-0.1.2-rc.1.tgz#vendor/dsh-runtime/0.1.2-rc.1/deepseek-ai-dsh-llm-retry-0.1.2-rc.1.tgz::hash=4655a0&locator=deepseek-harness-desktop%40workspace%3A."

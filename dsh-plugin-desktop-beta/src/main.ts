@@ -1,3 +1,4 @@
+import { ipzskPluginPatches } from './ipzsk-plugin-config.ts'
 /** DSH Desktop executable: minimal Electron bootstrap around the Host Cordis root. */
 
 import { app, crashReporter, safeStorage, shell } from 'electron'
@@ -1405,7 +1406,7 @@ async function start(): Promise<void> {
     const ctx = await boot(
       BIN_NAME,
       prepared.rootConfig,
-      prepared.patches,
+      [...prepared.patches, ...ipzskPluginPatches(ipzskAuth.models().plugin_configs ?? [], prepared.bareModuleBaseUrl, ipzskAuth.credential())],
       async (hostCtx) => {
         // Keep Host imports and browser bundle discovery on the same public
         // profile-overlay resolver used by packaged Electron.

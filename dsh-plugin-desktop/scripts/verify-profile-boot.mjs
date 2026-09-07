@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+import { ipzskPluginPatches } from '../src/ipzsk-plugin-config.ts'
 /** Headless smoke for the complete published DSH Web profile and renderer manifest. */
 
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -13,8 +15,14 @@ import {
 import { DESKTOP_SETTINGS_NAMESPACE } from '../lib/index.js'
 import { installDesktopPnpmRuntime } from '../lib/desktop-runtime-environment.js'
 import { installProfilePackageResolver } from '../lib/module-resolution.js'
-import { prepareDesktopProfile } from '../lib/profile.js'
+import { ensureDesktopProfile, prepareDesktopProfile } from '../lib/profile.js'
 import { DesktopProfileService } from '../lib/profile-service.js'
+
+let liveConfig
+if (process.argv.includes('--live-imagegen')) {
+  let input = ''; for await (const chunk of process.stdin) input += chunk
+  liveConfig = JSON.parse(input)
+}
 
 const BIN_NAME = 'dsh-plugin-desktop-profile-smoke'
 const HOST_SERVICE_PLUGIN_NAME = 'dsh-desktop-host-services-smoke-plugin'
@@ -43,6 +51,8 @@ const LAN_HTTPS = Object.freeze({
   async stop() { return LAN_HTTPS_SNAPSHOT },
 })
 const home = mkdtempSync(join(tmpdir(), 'dsh-desktop-profile-'))
+const previousHome = process.env.DSH_HOME
+process.env.DSH_HOME = home
 let ctx
 let releasePackageResolver
 let pnpmRuntime
@@ -58,7 +68,24 @@ try {
     '  default: minimal',
     '',
   ].join('\n'))
+  if (process.env.IPZSK_IMAGEGEN_MODULES) {
+    const profileDir = ensureDesktopProfile(home)
+    cpSync(process.env.IPZSK_IMAGEGEN_MODULES, join(profileDir, 'node_modules'), { recursive: true })
+    const manifestPath = join(profileDir, 'package.json')
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+    manifest.dsh.profile.bundles.push('@dickpy/dsh-imagegen')
+    writeFileSync(manifestPath, JSON.stringify(manifest))
+  }
   const prepared = prepareDesktopProfile('1', home, 'win32')
+  if (process.env.IPZSK_IMAGEGEN_MODULES) prepared.patches.push({id:'imagegen',config:{
+    channels:[{id:'ipzsk',name:'IPZSK',apiUrl:'https://api.ipzsk.com/v1',models:[{id:'gpt-image-2',alias:'gpt-image-2'}]}],
+    channelSecrets:{ipzsk:'synthetic-smoke-key'},defaultChannelId:'ipzsk',localStoragePath:join(home,'imagegen'),
+  }})
+  if (liveConfig) {
+    const entries = ipzskPluginPatches(liveConfig.plugin_configs, prepared.bareModuleBaseUrl, liveConfig.token)
+    for (const entry of entries) entry.config.localStoragePath = join(home, 'imagegen')
+    prepared.patches.push(...entries)
+  }
   const hostServicePluginDir = join(
     prepared.profile.dir,
     'node_modules',
@@ -143,7 +170,7 @@ try {
     async (host) => {
       // Match the public resolver path used by packaged Electron.
       host.loader.internal = undefined
-      host.provide(DSH_LAUNCH_ENVIRONMENT_KEY, createLaunchEnvironmentSnapshot([]))
+      host.provide(DSH_LAUNCH_ENVIRONMENT_KEY, createLaunchEnvironmentSnapshot([{source:'process',values:{DSH_HOME:home}}]))
       host.provide('desktopBrowserAccess', BROWSER_ACCESS)
       host.provide('desktopLanHttps', LAN_HTTPS)
       host.provide('desktopRuntime', runtime)
@@ -204,10 +231,34 @@ try {
   const standardPreset = await agentPresets.resolve('standard')
   if (standardPreset.broken) throw new Error(standardPreset.broken)
   const standardAgent = await ctx.agents.create({
-    sessionId: 'ipzsk-standard-preset-smoke',
+    sessionId: 'ipzsk-standard-preset-smoke-'+randomUUID(),
     meta: { cwd: home, agentPreset: 'standard' },
-    setup: async agentCtx => { await agentPresets.mount(agentCtx, 'standard') },
+    setup: async agentCtx => {
+      await agentPresets.mount(agentCtx, 'standard')
+      if (process.env.IPZSK_IMAGEGEN_MODULES && !agentCtx.tools.schemas().some(tool => tool.name === 'generate_image')) {
+        throw new Error('independent imagegen plugin did not expose generate_image to the agent')
+      }
+    },
   })
+  if (liveConfig) {
+    const schema = ctx.tools.schemas().find(tool => tool.name === 'generate_image')
+    const response = await fetch('https://api.ipzsk.com/v1/chat/completions', {
+      method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+liveConfig.token},
+      body:JSON.stringify({model:liveConfig.default_model,messages:[{role:'user',content:'Generate one simple blue circle on a white background. Use the image tool, size 1:1, quality 1k, count 1.'}],
+        tools:[{type:'function',function:schema}],tool_choice:{type:'function',function:{name:'generate_image'}},max_completion_tokens:1024,stream:false}),
+      signal:AbortSignal.timeout(60000),
+    })
+    if (!response.ok) throw new Error('Live chat tool request HTTP '+response.status)
+    const call = (await response.json()).choices?.[0]?.message?.tool_calls?.[0]
+    if (call?.function?.name !== 'generate_image') throw new Error('Live model did not select generate_image')
+    const result = await ctx.tools.execute({name:'generate_image',callId:'ipzsk-live-imagegen',
+      arguments:JSON.parse(call.function.arguments),agent:standardAgent.agent,signal:AbortSignal.timeout(300000)})
+    if (result.isError) throw new Error('Live image tool failed: '+JSON.stringify(result.content))
+    const content = result.content.find(part => part.type === 'text')
+    const value = JSON.parse(content.text)
+    if (value.status !== 'completed' || !value.images?.length) throw new Error('Image tool did not return completed image references: '+JSON.stringify(value))
+    console.log(JSON.stringify({live_imagegen:'passed',model:liveConfig.default_model,images:value.images.length,plugin:'@dickpy/dsh-imagegen'}))
+  }
   await standardAgent.dispose()
   const minimalPreset = await agentPresets.resolve('minimal')
   if (minimalPreset.id !== 'minimal') {
@@ -319,6 +370,8 @@ try {
   }
   const graph = JSON.parse(bootMatch[1])
   const ids = new Set(graph.entries.map(entry => entry.id))
+  if (process.env.IPZSK_IMAGEGEN_MODULES && !ids.has('@dickpy/dsh-imagegen')) throw new Error('Imagegen client is absent from the browser module graph')
+  if (process.env.IPZSK_IMAGEGEN_MODULES && readFileSync(prepared.settingsDocument,'utf8').includes(liveConfig?.token ?? 'synthetic-smoke-key')) throw new Error('Plugin credential was persisted in settings')
   for (const id of [
     'dsh-plugin-desktop',
     '@deepseek-ai/dsh-client-ui-conversation',
@@ -342,4 +395,6 @@ try {
   releasePackageResolver?.()
   pnpmRuntime?.dispose()
   rmSync(home, { recursive: true, force: true })
+  if (previousHome === undefined) delete process.env.DSH_HOME
+  else process.env.DSH_HOME = previousHome
 }
