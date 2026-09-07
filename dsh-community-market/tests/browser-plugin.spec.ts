@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { apply, inject, NS } from '../src/client/index.js'
 import { MarketLauncher } from '../src/client/MarketLauncher.js'
 import { MarketOverlay } from '../src/client/MarketOverlay.js'
-import { MarketSettingsTab } from '../src/client/MarketSettingsTab.js'
+import { IpzskMarket } from '../src/client/IpzskMarket.js'
 import { en, zh } from '../src/client/locales.js'
 
 interface TestEntry {
@@ -140,7 +140,7 @@ describe('community market browser plugin', () => {
     expect(settings).toHaveLength(1)
     expect(launcher).toHaveLength(1)
     expect(overlay).toHaveLength(1)
-    expect(settings[0]?.component).toBe(MarketSettingsTab)
+    expect(settings[0]?.component).toBe(IpzskMarket)
     expect(launcher[0]?.component).toBe(MarketLauncher)
     expect(overlay[0]?.component).toBe(MarketOverlay)
     expect(settings[0]?.options).toMatchObject({ id: 'community-market', order: 20 })
@@ -182,7 +182,7 @@ describe('community market browser plugin', () => {
     for (const name of names) expect(b.entries(name)).toHaveLength(0)
 
     for (const name of names) b.declare(name)
-    expect(b.entries('settings.plugins.tab')[0]?.component).toBe(MarketSettingsTab)
+    expect(b.entries('settings.plugins.tab')[0]?.component).toBe(IpzskMarket)
     expect(b.entries('sidebar.footer.action')[0]?.component).toBe(MarketLauncher)
     expect(b.entries('shell.overlay')[0]?.component).toBe(MarketOverlay)
 

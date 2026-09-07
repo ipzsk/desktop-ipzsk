@@ -1272,6 +1272,7 @@ describe('MarketSettingsTab', () => {
   })
 
   it('opens and closes the shared Market surface from the sidebar launcher', async () => {
+    vi.stubGlobal('fetch', async()=>new Response(JSON.stringify({plugins:[]})))
     vi.mocked(readMarketState).mockResolvedValue(emptyState)
     const instance = createMarketViewStore().create()
     const useStore = <T,>(selector: (state: { open: boolean }) => T): T => useSyncExternalStore(
@@ -1289,7 +1290,8 @@ describe('MarketSettingsTab', () => {
     expect(screen.queryByRole('dialog', { name: en.title })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: en.tab }))
     expect(await screen.findByRole('dialog', { name: en.title })).toBeTruthy()
-    expect(await screen.findByRole('heading', { name: en.emptyTitle })).toBeTruthy()
+    expect(await screen.findByText('暂无已上架插件。')).toBeTruthy()
+    vi.unstubAllGlobals()
     fireEvent.click(screen.getAllByRole('button', { name: en.closeMarket })[1]!)
     await waitFor(() => { expect(screen.queryByRole('dialog', { name: en.title })).toBeNull() })
   })
