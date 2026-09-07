@@ -87,7 +87,7 @@ describe('Desktop Market fail-safe reads', () => {
     ['malformed JSON', (path: string) => writeFileSync(path, '{broken', 'utf8')],
     ['unknown version', (path: string) => writeFileSync(path, '{"version":2,"requested":"disabled","legacyDefaulted":false}\n', 'utf8')],
     ['invalid provider', (path: string) => writeFileSync(path, '{"version":1,"requested":"other","legacyDefaulted":false}\n', 'utf8')],
-  ])('defaults %s to disabled without writing a migration', (_label, prepare) => {
+  ])('defaults %s safely without writing a migration', (_label, prepare) => {
     const userData = temporaryUserData()
     const statePath = desktopMarketStatePath(userData)
     mkdirSync(join(userData, 'desktop-market'), { recursive: true })
@@ -95,8 +95,8 @@ describe('Desktop Market fail-safe reads', () => {
     const before = existsSync(statePath) ? readFileSync(statePath, 'utf8') : undefined
 
     expect(readDesktopMarketStateForUserData(userData)).toEqual({
-      requested: 'disabled',
-      effective: 'disabled',
+      requested: _label === 'missing' ? 'community-market' : 'disabled',
+      effective: _label === 'missing' ? 'community-market' : 'disabled',
       legacyDefaulted: true,
     })
     expect(existsSync(statePath) ? readFileSync(statePath, 'utf8') : undefined).toBe(before)

@@ -102,6 +102,8 @@ export class IpzskAuth {
     return await this.profile()
   }
 
+  async pluginMarket(): Promise<unknown> { return this.api('/api/me/plugin-market') }
+
   models(): IpzskModels {
     if (!this.modelSettings) throw new Error('模型服务尚未连接，请重新登录。')
     return this.modelSettings

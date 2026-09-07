@@ -10,7 +10,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { MarketLocaleKey } from './locales.js'
 import { MarketLauncher } from './MarketLauncher.js'
 import { MarketOverlay } from './MarketOverlay.js'
-import { MarketSettingsTab } from './MarketSettingsTab.js'
+import { IpzskMarket } from './IpzskMarket.js'
 import { createMarketViewStore } from './market-view-store.js'
 import { en, zh } from './locales.js'
 import { installMarketStyles } from './styles.js'
@@ -36,7 +36,7 @@ export function apply(ctx: ClientContext): void {
     label: () => ctx.locale.bind(NS)('tab'),
     locale: NS,
     inject: () => ({ readLocale }),
-  }, MarketSettingsTab))
+  }, IpzskMarket))
   ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
     name: 'sidebar.footer.action',
     id: 'community-market',

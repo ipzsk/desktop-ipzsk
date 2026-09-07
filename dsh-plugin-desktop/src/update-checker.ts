@@ -7,7 +7,7 @@ import {
 } from './desktop-installation-id.ts'
 
 /** Public endpoint returning the latest DSH Desktop version for a requested channel. */
-export const DESKTOP_VERSION_ENDPOINT = 'https://www.dshdesktop.cn/api/desktop/version'
+export const DESKTOP_VERSION_ENDPOINT = 'https://api.ipzsk.com/api/desktop/version'
 
 /** Header carrying the installed Desktop version to the fixed version endpoint. */
 export const DESKTOP_CURRENT_VERSION_HEADER = 'X-DSH-Desktop-Version'
@@ -130,7 +130,7 @@ export async function checkForDesktopUpdate(
 
   const init: RequestInit = {
     method: 'GET',
-    headers,
+    headers: { ...headers, 'X-IPZSK-Platform': process.platform, 'X-IPZSK-Arch': process.arch },
     cache: 'no-store',
     redirect: 'error',
     ...(options.signal === undefined ? {} : { signal: options.signal }),

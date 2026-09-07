@@ -153,7 +153,8 @@ export function readDesktopMarketState(statePath: string): DesktopMarketSnapshot
   assertDesktopMarketStatePath(statePath)
   try {
     return snapshot(parseDesktopMarketState(readRawState(statePath)).requested, false)
-  } catch {
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return snapshot('community-market', true)
     return DEFAULT_SNAPSHOT
   }
 }

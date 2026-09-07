@@ -256,7 +256,7 @@ function abortOnDisconnect(req: IncomingMessage, res: ServerResponse, controller
   }
 }
 
-function readJson(req: IncomingMessage, signal: AbortSignal): Promise<unknown> {
+export function readJson(req: IncomingMessage, signal: AbortSignal): Promise<unknown> {
   const abortReason = () => signal.reason ?? new DOMException('The operation was aborted', 'AbortError')
   if (signal.aborted) return Promise.reject(abortReason())
   return new Promise((resolve, reject) => {
@@ -366,11 +366,11 @@ function requestContext(req: IncomingMessage, expectedPort: number): MarketReque
   }
 }
 
-function requestAllowed(req: IncomingMessage, expectedPort: number): boolean {
+export function requestAllowed(req: IncomingMessage, expectedPort: number): boolean {
   return marketRequestAllowed(requestContext(req, expectedPort))
 }
 
-function mutationAllowed(req: IncomingMessage, expectedPort: number): boolean {
+export function mutationAllowed(req: IncomingMessage, expectedPort: number): boolean {
   return marketMutationAllowed({
     ...requestContext(req, expectedPort),
   })

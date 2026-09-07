@@ -1,6 +1,8 @@
 const STYLE_ID = 'dsh-community-market/styles'
 
 const css = `
+.ipzskMarket{padding:24px}.ipzskMarketToolbar{display:flex;justify-content:space-between;gap:20px;margin-bottom:24px}.ipzskMarket p{opacity:.75;line-height:1.7}.ipzskMarket button{background:var(--color-bg-secondary,#333);color:inherit;border:1px solid #8885;border-radius:8px;padding:9px 16px;cursor:pointer}.ipzskMarket button:disabled{opacity:.5;cursor:default}.ipzskMarketGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px}.ipzskMarket article{padding:22px;border:1px solid #8884;border-radius:12px}.ipzskMarketNotes{white-space:pre-wrap;max-height:180px;overflow:auto}.ipzskMarket footer{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:22px}.ipzskMarket a{color:inherit}
+
 .dshMarketRoot {
   position: relative;
   display: flex;

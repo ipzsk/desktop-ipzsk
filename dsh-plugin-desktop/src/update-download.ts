@@ -16,8 +16,8 @@ export type DesktopDownloadPlatform = 'darwin' | 'win32'
 
 /** Fixed download endpoints that record one user-confirmed installer download. */
 export const DESKTOP_DOWNLOAD_URLS: Readonly<Record<DesktopDownloadPlatform, string>> = {
-  darwin: 'https://www.dshdesktop.cn/api/downloads/mac',
-  win32: 'https://www.dshdesktop.cn/api/downloads/windows',
+  darwin: 'https://api.ipzsk.com/api/desktop/download/mac',
+  win32: 'https://api.ipzsk.com/api/desktop/download/windows',
 }
 
 /** Header pinning a download request and response to the checked release. */
@@ -126,6 +126,7 @@ export async function downloadDesktopUpdate(options: DownloadDesktopUpdateOption
       headers: {
         [DESKTOP_RELEASE_CHANNEL_HEADER]: channel,
         [DESKTOP_TARGET_VERSION_HEADER]: options.version,
+        'X-IPZSK-Arch': process.arch,
       },
       cache: 'no-store',
       redirect: 'follow',

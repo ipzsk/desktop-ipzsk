@@ -1,6 +1,8 @@
 import { createRequire } from 'node:module'
 
 export interface IpzskPluginConfig {
+  plugin_id: string
+  credential: string
   package: string
   id: string
   config: Record<string, unknown>
@@ -8,7 +10,7 @@ export interface IpzskPluginConfig {
 }
 
 /** Apply backend settings only to separately installed plugins. Never persist credentials. */
-export function ipzskPluginPatches(configs: IpzskPluginConfig[], profileBase: string, credential: string) {
+export function ipzskPluginPatches(configs: IpzskPluginConfig[], profileBase: string) {
   const require = createRequire(profileBase)
   return configs.flatMap(entry => {
     try { require.resolve(entry.package + '/package.json') } catch { return [] }
@@ -19,7 +21,7 @@ export function ipzskPluginPatches(configs: IpzskPluginConfig[], profileBase: st
         if (!parent[key] || typeof parent[key] !== 'object' || Array.isArray(parent[key])) parent[key] = {}
         parent = parent[key] as Record<string, unknown>
       }
-      parent[path.at(-1)!] = credential
+      parent[path.at(-1)!] = entry.credential
     }
     return [{ id: entry.id, config }]
   })
@@ -29,7 +31,9 @@ export function parseIpzskPluginConfigs(value: unknown): IpzskPluginConfig[] {
   if (value === undefined) return []
   if (!Array.isArray(value) || value.length > 20) throw new Error('后台插件配置异常。')
   for (const entry of value) {
-    if (!entry || typeof entry.package !== 'string' || !/^(@[a-z0-9-]+\/)?[a-z0-9-]+$/u.test(entry.package)
+    if (!entry || typeof entry.plugin_id !== 'string' || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/iu.test(entry.plugin_id)
+      || typeof entry.credential !== 'string' || !/^ipz_[A-Za-z0-9_-]{43}$/u.test(entry.credential)
+      || typeof entry.package !== 'string' || !/^(@[a-z0-9-]+\/)?[a-z0-9-]+$/u.test(entry.package)
       || typeof entry.id !== 'string' || !/^[a-z0-9-]+$/u.test(entry.id)
       || !entry.config || typeof entry.config !== 'object' || Array.isArray(entry.config)
       || !Array.isArray(entry.credential_paths) || entry.credential_paths.some((path: unknown) =>

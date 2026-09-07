@@ -1,3 +1,7 @@
+import { mkdir } from 'node:fs/promises'
+import { createRequire } from 'node:module'
+import { pathToFileURL } from 'node:url'
+import { downloadApproved, type ApprovedPlugin } from './approved.js'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { lstat, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import { isAbsolute, join, resolve } from 'node:path'
@@ -572,6 +576,40 @@ export class MarketInstallService {
       ...(metadata === undefined ? {} : { metadata }),
       fetchedAt: new Date(this.now()).toISOString(),
     }
+  }
+
+  /** Install or replace exactly one reviewed artifact, preserving plugin data. */
+  async installApproved(plugin: ApprovedPlugin, signal: AbortSignal): Promise<MarketOperationResult> {
+    return this.runExclusive(async () => {
+      const operationSignal = this.operationSignal(signal)
+      const profile = this.profile()
+      const bytes = await downloadApproved(plugin, operationSignal)
+      const directory = join(profile.dir, '.ipzsk-packages')
+      await mkdir(directory, { recursive: true, mode: 0o700 })
+      const archive = join(directory, plugin.sha256 + '.tgz')
+      await writeFile(archive, bytes, { mode: 0o600 })
+      const backup = new Map<string, Buffer | undefined>()
+      for (const file of ['package.json', 'pnpm-lock.yaml']) {
+        try { backup.set(file, await readFile(join(profile.dir,file))) }
+        catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; backup.set(file,undefined) }
+      }
+      try {
+        await this.runPnpm(['add', '--save-exact', '--ignore-scripts', archive], operationSignal)
+        const require = createRequire(pathToFileURL(join(profile.dir,'package.json')))
+        const installed = await readManifest(require.resolve(plugin.package_name + '/package.json'))
+        if (installed.version !== plugin.version || installed.name !== plugin.package_name) throw new Error('安装后的版本不匹配。')
+        await setProfileBundle(profile, plugin.package_name, true)
+      } catch {
+        for (const [file,body] of backup) {
+          if (body) await writeFile(join(profile.dir,file),body)
+          else await unlink(join(profile.dir,file)).catch(error => { if (error.code !== 'ENOENT') throw error })
+        }
+        try { await this.runPnpm(['install','--frozen-lockfile','--ignore-scripts'], AbortSignal.timeout(120_000)) }
+        catch { throw new Error('安装失败，已恢复依赖清单；请在客户端恢复中心恢复检查点。') }
+        throw new Error('安装失败，已恢复此前插件版本。')
+      }
+      return { action: 'install', packageName: plugin.package_name, version: plugin.version, restartToken: this.issueRestartToken() }
+    })
   }
 
   async previewInstall(

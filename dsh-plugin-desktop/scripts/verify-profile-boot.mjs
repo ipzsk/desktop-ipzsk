@@ -77,12 +77,14 @@ try {
     writeFileSync(manifestPath, JSON.stringify(manifest))
   }
   const prepared = prepareDesktopProfile('1', home, 'win32')
-  if (process.env.IPZSK_IMAGEGEN_MODULES) prepared.patches.push({id:'imagegen',config:{
+  if (process.env.IPZSK_IMAGEGEN_MODULES) prepared.patches.push(...ipzskPluginPatches([{
+    plugin_id:'7d8b7d87-b85f-49f1-bde7-a0b1a2f33401',package:'@dickpy/dsh-imagegen',id:'imagegen',
+    credential:'synthetic-smoke-key',credential_paths:[['channelSecrets','ipzsk']],config:{
     channels:[{id:'ipzsk',name:'IPZSK',apiUrl:'https://api.ipzsk.com/v1',models:[{id:'gpt-image-2',alias:'gpt-image-2'}]}],
-    channelSecrets:{ipzsk:'synthetic-smoke-key'},defaultChannelId:'ipzsk',localStoragePath:join(home,'imagegen'),
-  }})
+    defaultChannelId:'ipzsk',localStoragePath:join(home,'imagegen'),
+  }}],prepared.bareModuleBaseUrl))
   if (liveConfig) {
-    const entries = ipzskPluginPatches(liveConfig.plugin_configs, prepared.bareModuleBaseUrl, liveConfig.token)
+    const entries = ipzskPluginPatches(liveConfig.plugin_configs, prepared.bareModuleBaseUrl)
     for (const entry of entries) entry.config.localStoragePath = join(home, 'imagegen')
     prepared.patches.push(...entries)
   }
@@ -371,7 +373,7 @@ try {
   const graph = JSON.parse(bootMatch[1])
   const ids = new Set(graph.entries.map(entry => entry.id))
   if (process.env.IPZSK_IMAGEGEN_MODULES && !ids.has('@dickpy/dsh-imagegen')) throw new Error('Imagegen client is absent from the browser module graph')
-  if (process.env.IPZSK_IMAGEGEN_MODULES && readFileSync(prepared.settingsDocument,'utf8').includes(liveConfig?.token ?? 'synthetic-smoke-key')) throw new Error('Plugin credential was persisted in settings')
+  if (process.env.IPZSK_IMAGEGEN_MODULES && [liveConfig?.token ?? 'synthetic-smoke-key', ...(liveConfig?.plugin_configs ?? []).map(entry => entry.credential)].some(secret => readFileSync(prepared.settingsDocument,'utf8').includes(secret))) throw new Error('Plugin credential was persisted in settings')
   for (const id of [
     'dsh-plugin-desktop',
     '@deepseek-ai/dsh-client-ui-conversation',

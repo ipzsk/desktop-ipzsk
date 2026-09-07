@@ -8,15 +8,17 @@ import { ipzskPluginPatches, parseIpzskPluginConfigs } from '../src/ipzsk-plugin
 it('uses backend configuration for an independently installed plugin and injects secrets only into a detached copy', async () => {
   const root = await mkdtemp(join(tmpdir(), 'ipzsk-plugin-'))
   try {
-    const configs = parseIpzskPluginConfigs([{ package:'future-plugin', id:'future', config:{ channels:[] }, credential_paths:[['channelSecrets','ipzsk']] }])
+    const secret = 'ipz_' + 'a'.repeat(43)
+    const configs = parseIpzskPluginConfigs([{ plugin_id:'7d8b7d87-b85f-49f1-bde7-a0b1a2f33401', credential:secret, package:'future-plugin', id:'future', config:{ channels:[] }, credential_paths:[['channelSecrets','ipzsk']] }])
     const base = pathToFileURL(join(root, 'package.json')).href
-    expect(ipzskPluginPatches(configs, base, 'synthetic')).toEqual([])
+    expect(ipzskPluginPatches(configs, base)).toEqual([])
     const pkg = join(root, 'node_modules/future-plugin')
     await mkdir(pkg, { recursive:true })
     await writeFile(join(pkg, 'package.json'), '{"name":"future-plugin"}')
-    expect(ipzskPluginPatches(configs, base, 'synthetic')).toEqual([{ id:'future', config:{ channels:[], channelSecrets:{ ipzsk:'synthetic' } } }])
-    expect(JSON.stringify(configs)).not.toContain('synthetic')
-    expect(ipzskPluginPatches(configs, base, 'rotated')[0]?.config.channelSecrets).toEqual({ ipzsk:'rotated' })
+    expect(ipzskPluginPatches(configs, base)).toEqual([{ id:'future', config:{ channels:[], channelSecrets:{ ipzsk:secret } } }])
+    expect(JSON.stringify(configs[0]?.config)).not.toContain(secret)
+    configs[0]!.credential = 'ipz_' + 'b'.repeat(43)
+    expect(ipzskPluginPatches(configs, base)[0]?.config.channelSecrets).toEqual({ ipzsk:'ipz_' + 'b'.repeat(43) })
   } finally { await rm(root, { recursive:true, force:true }) }
 })
 it('rejects malformed credential paths and package names', () => {

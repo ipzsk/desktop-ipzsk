@@ -1,7 +1,7 @@
 export const zh = {
   tab: '插件市场',
-  title: '社区插件市场',
-  subtitle: '从你选择的来源发现 DeepSeek Harness 插件',
+  title: 'IPZSK 插件市场',
+  subtitle: '独立安装和更新 IPZSK 审核的 GitHub 插件',
   close: '关闭',
   closeMarket: '关闭插件市场',
   discover: '发现',
@@ -139,8 +139,8 @@ export type MarketLocaleKey = keyof typeof zh
 
 export const en: Record<MarketLocaleKey, string> = {
   tab: 'Plugin Market',
-  title: 'Community Plugin Market',
-  subtitle: 'Discover DeepSeek Harness plugins from sources you choose',
+  title: 'IPZSK Plugin Market',
+  subtitle: 'Install and update GitHub plugins approved by IPZSK',
   close: 'Close',
   closeMarket: 'Close Plugin Market',
   discover: 'Discover',

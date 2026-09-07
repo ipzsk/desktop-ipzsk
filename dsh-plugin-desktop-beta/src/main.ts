@@ -1406,7 +1406,7 @@ async function start(): Promise<void> {
     const ctx = await boot(
       BIN_NAME,
       prepared.rootConfig,
-      [...prepared.patches, ...ipzskPluginPatches(ipzskAuth.models().plugin_configs ?? [], prepared.bareModuleBaseUrl, ipzskAuth.credential())],
+      [...prepared.patches, ...ipzskPluginPatches(ipzskAuth.models().plugin_configs ?? [], prepared.bareModuleBaseUrl)],
       async (hostCtx) => {
         // Keep Host imports and browser bundle discovery on the same public
         // profile-overlay resolver used by packaged Electron.
@@ -1434,6 +1434,7 @@ async function start(): Promise<void> {
         hostCtx.provide('desktopBrowserAccess', browserAccess)
         hostCtx.provide('desktopLanHttps', lanHttps)
         hostCtx.provide('desktopRuntime', runtime)
+        hostCtx.provide('ipzskMarket', { catalog: () => ipzskAuth.pluginMarket(), checkpoint: () => { profileCheckpoint?.captureHealthy() } })
         hostCtx.provide('desktopPnpmBootstrap', desktopPnpmBootstrap)
         await hostCtx.plugin(DesktopActionsService, {
           openTerminal: () => { runtime.openTerminal() },
