@@ -10,8 +10,29 @@ export interface IpzskSessionStore {
 }
 
 export interface IpzskModel { readonly id: string; readonly name: string; readonly contextWindow: number; readonly maxTokens: number }
-export interface IpzskImageModel { readonly id: string; readonly name: string; readonly sizes: string[]; readonly default_size: string }
-export interface IpzskModels { readonly default_model: string; readonly models: IpzskModel[]; readonly image_models?: IpzskImageModel[]; readonly plugin_configs?: IpzskPluginConfig[] }
+/** One canonical parameter the gateway accepts for a media model. Field names are gateway-side
+ *  (prompt / aspect_ratio / resolution / duration / enhance_prompt), never the upstream vendor's. */
+export interface IpzskModelParam {
+  readonly field: string; readonly type: string; readonly values?: string[]
+  readonly default?: string | number | boolean | null; readonly required?: boolean
+  readonly min?: number; readonly max?: number; readonly unit?: string
+}
+export interface IpzskMediaModel {
+  readonly id: string; readonly name: string
+  readonly params?: IpzskModelParam[]
+  /** field -> why this model refuses it, ready to show the user. */
+  readonly unsupported?: Record<string, string>
+  /** Deprecated: kept only so older builds keep booting; read params instead. Absent on models
+   *  that expose no aspect ratio at all (z-image-turbo), which is why neither may be required. */
+  readonly sizes?: string[]; readonly default_size?: string
+}
+export type IpzskImageModel = IpzskMediaModel
+export interface IpzskModels {
+  readonly default_model: string; readonly models: IpzskModel[]
+  readonly image_models?: IpzskMediaModel[]; readonly video_models?: IpzskMediaModel[]
+  readonly canonical_params?: Record<string, string>
+  readonly plugin_configs?: IpzskPluginConfig[]
+}
 
 export interface IpzskCustomer { readonly id: string; readonly email: string }
 
@@ -121,7 +142,9 @@ export class IpzskAuth {
     }
     if (this.remember) this.store.write(this.cookie)
     const config = await this.api('/api/me/desktop/bootstrap', {}) as {
-      token?: unknown; default_model?: unknown; models?: IpzskModel[]; image_models?: IpzskImageModel[]; plugin_configs?: unknown
+      token?: unknown; default_model?: unknown; models?: IpzskModel[]
+      image_models?: IpzskMediaModel[]; video_models?: IpzskMediaModel[]
+      canonical_params?: Record<string, string>; plugin_configs?: unknown
     }
     if (typeof config.token !== 'string' || !/^ipz_[A-Za-z0-9_-]{43}$/u.test(config.token)
       || typeof config.default_model !== 'string' || !Array.isArray(config.models) || !config.models.length
@@ -131,13 +154,20 @@ export class IpzskAuth {
       || !config.models.some(model => model.id === config.default_model)) {
       throw new Error('后台模型配置异常，请联系管理员。')
     }
-    if (config.image_models !== undefined && (!Array.isArray(config.image_models) || config.image_models.some(model =>
+    // Media models are validated on identity only. Their parameters are whatever the gateway
+    // says they are: a model with no aspect ratio (z-image-turbo) or no resolution is legal, and
+    // demanding sizes here would lock this client out the moment such a model is opened upstream.
+    const badMedia = (list?: IpzskMediaModel[]) => list !== undefined && (!Array.isArray(list) || list.some(model =>
       !model || typeof model.id !== 'string' || !/^[a-zA-Z0-9._-]{1,128}$/u.test(model.id)
-      || typeof model.name !== 'string' || !Array.isArray(model.sizes) || !model.sizes.length
-      || model.sizes.some(size => typeof size !== 'string' || size.length > 32)
-      || !model.sizes.includes(model.default_size)))) throw new Error('后台图片模型配置异常。')
+      || typeof model.name !== 'string' || !model.name
+      || (model.params !== undefined && (!Array.isArray(model.params)
+        || model.params.some(param => !param || typeof param.field !== 'string' || typeof param.type !== 'string')))))
+    if (badMedia(config.image_models)) throw new Error('后台图片模型配置异常。')
+    if (badMedia(config.video_models)) throw new Error('后台视频模型配置异常。')
     this.modelToken = config.token
-    this.modelSettings = { default_model: config.default_model, models: config.models, image_models: config.image_models ?? [], plugin_configs: parseIpzskPluginConfigs(config.plugin_configs) }
+    this.modelSettings = { default_model: config.default_model, models: config.models,
+      image_models: config.image_models ?? [], video_models: config.video_models ?? [],
+      canonical_params: config.canonical_params, plugin_configs: parseIpzskPluginConfigs(config.plugin_configs) }
     return { id: result.user.id, email: result.user.email }
   }
 
