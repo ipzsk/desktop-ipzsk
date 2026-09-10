@@ -732,7 +732,7 @@ describe('published package surface', () => {
 
   it('fixes the installed application identity', () => {
     expect(workspaceManifest.version).toBeUndefined()
-    expect(manifest.version).toBe('2.0.5')
+    expect(manifest.version).toBe('2.0.7')
     expect(manifest.build?.productName).toBe('IPZSK Desktop')
     expect(manifest.build?.appId).toBe('com.ipzsk.desktop')
     expect(manifest.build?.asar).toEqual({ smartUnpack: true })

@@ -25,7 +25,7 @@ import {
 const temporaryDirectories: string[] = []
 
 function temporaryDirectory(): string {
-  const directory = mkdtempSync(join(tmpdir(), 'dsh-desktop-pnpm-runtime-'))
+  const directory = fs.realpathSync(mkdtempSync(join(tmpdir(), 'dsh-desktop-pnpm-runtime-')))
   temporaryDirectories.push(directory)
   return directory
 }

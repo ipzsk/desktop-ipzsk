@@ -167,7 +167,8 @@ export class IpzskAuth {
     this.modelToken = config.token
     this.modelSettings = { default_model: config.default_model, models: config.models,
       image_models: config.image_models ?? [], video_models: config.video_models ?? [],
-      canonical_params: config.canonical_params, plugin_configs: parseIpzskPluginConfigs(config.plugin_configs) }
+      ...(config.canonical_params === undefined ? {} : { canonical_params: config.canonical_params }),
+      plugin_configs: parseIpzskPluginConfigs(config.plugin_configs) }
     return { id: result.user.id, email: result.user.email }
   }
 
