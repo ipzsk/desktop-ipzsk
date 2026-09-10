@@ -1006,7 +1006,7 @@ describe('published package surface', () => {
     const { jobName, job, step } = credentialSteps[0]!
     expect(jobName).toBe('desktop-macos')
     expect(job.needs).toContain('check')
-    expect(step.if).toBe("github.event_name != 'pull_request' && github.ref == 'refs/heads/master'")
+    expect(step.if).toBe("github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master'")
     expect(step.env).toMatchObject({
       MAC_CERT_P12_BASE64: '${{ secrets.MAC_CERT_P12_BASE64 }}',
       CSC_KEY_PASSWORD: '${{ secrets.CSC_KEY_PASSWORD }}',

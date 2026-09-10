@@ -1,10 +1,6 @@
 name: CI
 
 on:
-  pull_request:
-    branches: [master]
-  push:
-    branches: [master]
   workflow_dispatch:
 
 permissions:
@@ -139,10 +135,10 @@ jobs:
             ${{ matrix.workspace }}/dist/*-Portable.zip
           if-no-files-found: error
           compression-level: 0
-          retention-days: 14
+          retention-days: 7
 
   # Sign and notarize master builds only after the complete headless gate.
-  # Pull requests and dispatches on other branches keep the unsigned smoke.
+  # Manual dispatches on other branches keep the unsigned smoke.
   desktop-macos:
     needs: [changes, check]
     if: needs.changes.outputs.product == 'true'
@@ -172,21 +168,21 @@ jobs:
       - run: yarn install --immutable
       - run: yarn workspace ${{ matrix.workspace }} check:mac-package
       - name: Build macOS smoke artifact
-        if: github.event_name == 'pull_request' || github.ref != 'refs/heads/master'
+        if: github.ref != 'refs/heads/master'
         env:
           DSH_PACKAGE_CHECK_ALREADY_RAN: '1'
         run: yarn workspace ${{ matrix.workspace }} dist:mac-smoke
       - name: Upload unsigned macOS package
-        if: github.event_name == 'pull_request' || github.ref != 'refs/heads/master'
+        if: github.ref != 'refs/heads/master'
         uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.workspace }}-macos-universal-unsigned
           path: ${{ matrix.workspace }}/dist/mac-smoke/*.dmg
           if-no-files-found: error
           compression-level: 0
-          retention-days: 14
+          retention-days: 7
       - name: Sign and notarize macOS package
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master'
         shell: bash
         env:
           DSH_PACKAGE_CHECK_ALREADY_RAN: '1'
@@ -227,7 +223,7 @@ jobs:
         shell: bash
         run: rm -f "$RUNNER_TEMP/desktop-notary-key.p8"
       - name: Upload signed macOS package
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master'
         uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.workspace }}-macos-universal-signed
@@ -237,7 +233,7 @@ jobs:
             ${{ matrix.workspace }}/dist/mac-release/*.dmg.notarization.json
           if-no-files-found: error
           compression-level: 0
-          retention-days: 14
+          retention-days: 7
 
   # Upstream toolchain smoke: the portable-shell scripts must resolve the
   # pinned submodule's own Yarn/pnpm release on Windows.
