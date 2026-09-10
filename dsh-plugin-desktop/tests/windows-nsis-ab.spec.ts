@@ -111,7 +111,7 @@ function fixture(mutateStaged = false): { options: WindowsNsisAbBuildOptions, ca
       if (args.includes('--dir')) {
         const app = join(output, 'win-unpacked')
         mkdirSync(join(app, 'resources', 'app.asar.unpacked', 'native'), { recursive: true })
-        writeFileSync(join(app, 'DSH Desktop.exe'), pe())
+        writeFileSync(join(app, 'IPZSK Desktop.exe'), pe())
         writeFileSync(join(app, 'resources', 'app.asar'), 'one archive')
         writeFileSync(join(app, 'resources', 'app.asar.unpacked', 'native', 'addon.node'), 'native')
         return
@@ -154,8 +154,7 @@ describe('Windows NSIS A/B packaging', () => {
     )
     expect(calls[3]?.args).toContain('--reverse')
     expect(calls[3]?.args).toContain('--unsafe-paths')
-    expect(calls[3]?.args).toContain('--directory=.')
-    expect(calls[3]?.args).toContain('--include=./templates/nsis/include/extractAppPackage.nsh')
+    expect(calls[3]?.args).toContain('--include=templates/nsis/include/extractAppPackage.nsh')
     expect(calls[3]?.env.GIT_CEILING_DIRECTORIES)
       .toBe(join(options.outputRoot, '.staged-builder', 'node_modules'))
     expect(calls[4]?.args).toContain(`--prepackaged=${join(options.outputRoot, 'prepackaged', 'win-unpacked')}`)
@@ -265,8 +264,7 @@ describe('Windows NSIS A/B packaging', () => {
       'apply',
       '--reverse',
       '--unsafe-paths',
-      '--directory=.',
-      '--include=./templates/nsis/include/extractAppPackage.nsh',
+      '--include=templates/nsis/include/extractAppPackage.nsh',
       fileURLToPath(new URL('../../patches/app-builder-lib@26.15.7.patch', import.meta.url)),
     ], {
       env: {
@@ -427,7 +425,7 @@ describe('Windows NSIS A/B packaging', () => {
     mkdirSync(join(resources, 'app.asar.unpacked'), { recursive: true })
     writeFileSync(join(source, 'package.json'), '{"name":"dsh-plugin-desktop"}\n')
     writeFileSync(join(source, 'lib', 'main.js'), 'export {}\n')
-    writeFileSync(join(installRoot, 'DSH Desktop.exe'), pe())
+    writeFileSync(join(installRoot, 'IPZSK Desktop.exe'), pe())
     writeFileSync(join(resources, 'app.asar.unpacked', 'native.node'), 'native')
     // The library-level createPackage() promise resolves when it calls
     // WriteStream.end(), not when the file's finish event fires. A short-lived
@@ -440,11 +438,11 @@ describe('Windows NSIS A/B packaging', () => {
     const baselineUnpacked = identifyWindowsNsisAbTree(join(resources, 'app.asar.unpacked'))
     const baselineAppAsar = baselineResources.files.find(file => file.path === 'app.asar')?.sha256
     const sentinel = '.dsh-nsis-ab-old-sentinel-test'
-    writeFileSync(join(installRoot, 'Uninstall DSH Desktop.exe'), pe())
+    writeFileSync(join(installRoot, 'Uninstall IPZSK Desktop.exe'), pe())
     writeFileSync(join(resources, 'app.asar.unpacked', sentinel), 'old')
 
     const inspection = inspectInstalledWindowsApp(installRoot, [
-      'Uninstall DSH Desktop.exe',
+      'Uninstall IPZSK Desktop.exe',
       `resources\\app.asar.unpacked\\${sentinel}`,
     ])
     expect(inspection.valid, inspection.errors.join('\n')).toBe(true)
@@ -460,7 +458,7 @@ describe('Windows NSIS A/B packaging', () => {
   it('parses repeated exact application-relative inspector exclusions', () => {
     expect(parseInstalledWindowsAppArguments([
       '--ignore-relative-path',
-      'Uninstall DSH Desktop.exe',
+      'Uninstall IPZSK Desktop.exe',
       '--install-root',
       'C:\\DSH',
       '--ignore-relative-path',
@@ -468,7 +466,7 @@ describe('Windows NSIS A/B packaging', () => {
     ])).toEqual({
       installRoot: 'C:\\DSH',
       ignoreRelativePaths: [
-        'Uninstall DSH Desktop.exe',
+        'Uninstall IPZSK Desktop.exe',
         'resources/app.asar.unpacked/sentinel',
       ],
     })
@@ -485,7 +483,7 @@ describe('Windows NSIS A/B packaging', () => {
     roots.push(root)
     const resources = join(root, 'resources')
     mkdirSync(resources, { recursive: true })
-    writeFileSync(join(root, 'DSH Desktop.exe'), pe())
+    writeFileSync(join(root, 'IPZSK Desktop.exe'), pe())
     writeFileSync(join(resources, 'app.asar'), 'not an asar')
 
     const inspection = inspectInstalledWindowsApp(root)
@@ -498,7 +496,7 @@ describe('Windows NSIS A/B packaging', () => {
   it('runs the shared packaged-runtime smoke with an Electron Builder-shaped context', () => {
     const root = mkdtempSync(join(tmpdir(), 'dsh-installed-runtime-'))
     roots.push(root)
-    writeFileSync(join(root, 'DSH Desktop.exe'), pe())
+    writeFileSync(join(root, 'IPZSK Desktop.exe'), pe())
     const contexts: Parameters<PackagedElectronSmoke>[0][] = []
 
     const result = probeInstalledWindowsRuntime(root, context => contexts.push(context), 'win32')
@@ -510,8 +508,8 @@ describe('Windows NSIS A/B packaging', () => {
       electronPlatformName: 'win32',
       arch: 1,
       packager: {
-        executableName: 'DSH Desktop',
-        appInfo: { productFilename: 'DSH Desktop' },
+        executableName: 'IPZSK Desktop',
+        appInfo: { productFilename: 'IPZSK Desktop' },
       },
     })
     expect(contexts[0]).not.toHaveProperty('executableName')

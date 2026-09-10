@@ -21,13 +21,13 @@ interface AppFixture {
 function fixture(): AppFixture {
   const root = mkdtempSync(join(tmpdir(), 'dsh-mac-smoke-'))
   temporaryRoots.push(root)
-  const contents = join(root, 'DSH Desktop Beta.app', 'Contents')
+  const contents = join(root, 'IPZSK Desktop Beta.app', 'Contents')
   const macos = join(contents, 'MacOS')
   const resources = join(contents, 'Resources')
   mkdirSync(macos, { recursive: true })
   mkdirSync(resources, { recursive: true })
   const infoPlist = join(contents, 'Info.plist')
-  const executable = join(macos, 'DSH Desktop Beta')
+  const executable = join(macos, 'IPZSK Desktop Beta')
   const appAsar = join(resources, 'app.asar')
   const modeOverrides = new Map<string, number>()
   writeFileSync(infoPlist, '<?xml version="1.0" encoding="UTF-8"?>')
@@ -55,7 +55,7 @@ function options(
   const removeMountPoint = vi.fn()
   const value: MacSmokeVerificationOptions = {
     distDir: '/release/dist',
-    productName: 'DSH Desktop Beta',
+    productName: 'IPZSK Desktop Beta',
     listDmgs: () => ['/release/dist/DSH-Desktop-Beta-2.0.1.dmg'],
     makeMountPoint: () => '/private/tmp/dsh-desktop-dmg-smoke-test',
     run: (command, args) => { calls.push({ command, args: [...args] }) },
@@ -98,7 +98,7 @@ describe('macOS DMG smoke artifact verification', () => {
   it('mounts one DMG and accepts a well-formed unsigned application bundle', () => {
     const value = fixture()
     const harness = options({ makeMountPoint: () => value.root }, value.modeOverrides)
-    const appPath = join(value.root, 'DSH Desktop Beta.app')
+    const appPath = join(value.root, 'IPZSK Desktop Beta.app')
 
     expect(verifyMacSmoke(harness.value)).toEqual({
       appPath,

@@ -25,7 +25,7 @@ function fixture(version = '2.0.0'): {
   const unpacked = join(dist, 'win-unpacked')
   mkdirSync(unpacked, { recursive: true })
   const installer = join(dist, `DSH-Desktop-Beta-${version}-x64-Setup.exe`)
-  const application = join(unpacked, 'DSH Desktop Beta.exe')
+  const application = join(unpacked, 'IPZSK Desktop Beta.exe')
   writeFileSync(installer, portableExecutable())
   writeFileSync(application, portableExecutable())
   return { root, installer, application }

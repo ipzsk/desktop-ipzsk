@@ -4,6 +4,7 @@ import { closeSync, existsSync, lstatSync, openSync, readSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { extractFile, listPackage } from '@electron/asar'
+import { DESKTOP_PRODUCT_NAME } from '../src/product-identity.ts'
 import {
   identifyWindowsNsisAbFile,
   identifyWindowsNsisAbTree,
@@ -47,7 +48,7 @@ export function inspectInstalledWindowsApp(
   const root = resolve(installRoot)
   const normalizedIgnoredPaths = ignoreRelativePaths.map(normalizeWindowsNsisAbRelativePath)
   const resourcesPath = join(root, 'resources')
-  const executablePath = join(root, 'DSH Desktop.exe')
+  const executablePath = join(root, `${DESKTOP_PRODUCT_NAME}.exe`)
   const asarPath = join(resourcesPath, 'app.asar')
   const unpackedPath = join(resourcesPath, 'app.asar.unpacked')
   const errors: string[] = []
@@ -73,7 +74,7 @@ export function inspectInstalledWindowsApp(
       closeSync(descriptor)
     }
     const header = headerBuffer.toString('ascii')
-    if (header !== 'MZ') errors.push('DSH Desktop.exe does not have a Windows PE header')
+    if (header !== 'MZ') errors.push(`${DESKTOP_PRODUCT_NAME}.exe does not have a Windows PE header`)
   } catch (cause) {
     errors.push(`application executable is unavailable: ${message(cause)}`)
   }

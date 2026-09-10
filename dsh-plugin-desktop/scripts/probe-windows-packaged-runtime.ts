@@ -3,6 +3,7 @@
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { DESKTOP_PRODUCT_NAME } from '../src/product-identity.ts'
 import {
   smokePackagedElectronRuntime,
   type PackagedElectronSmoke,
@@ -31,7 +32,7 @@ export function probeInstalledWindowsRuntime(
   platform: NodeJS.Platform = process.platform,
 ): InstalledWindowsRuntimeProbe {
   const root = resolve(installRoot)
-  const executable = join(root, 'DSH Desktop.exe')
+  const executable = join(root, `${DESKTOP_PRODUCT_NAME}.exe`)
   try {
     if (platform !== 'win32') {
       throw new Error('installed Windows runtime probe requires a native Windows host')
@@ -42,8 +43,8 @@ export function probeInstalledWindowsRuntime(
       electronPlatformName: 'win32',
       arch: 1,
       packager: {
-        executableName: 'DSH Desktop',
-        appInfo: { productFilename: 'DSH Desktop' },
+        executableName: DESKTOP_PRODUCT_NAME,
+        appInfo: { productFilename: DESKTOP_PRODUCT_NAME },
       },
     })
     return { installRoot: root, executable, success: true, error: null }
