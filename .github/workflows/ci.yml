@@ -130,6 +130,16 @@ jobs:
         env:
           DSH_PACKAGE_CHECK_ALREADY_RAN: '1'
         run: yarn workspace ${{ matrix.workspace }} dist:win-portable
+      - name: Upload Windows packages
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ matrix.workspace }}-windows-x64
+          path: |
+            ${{ matrix.workspace }}/dist/*-Setup.exe
+            ${{ matrix.workspace }}/dist/*-Portable.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
 
   # macOS-only universal packaging smoke on a real macOS runner: the signed
   # release is built manually on a credentialed machine, so an unsigned DMG
@@ -167,6 +177,14 @@ jobs:
         env:
           DSH_PACKAGE_CHECK_ALREADY_RAN: '1'
         run: yarn workspace ${{ matrix.workspace }} dist:mac-smoke
+      - name: Upload macOS package
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ matrix.workspace }}-macos-universal-unsigned
+          path: ${{ matrix.workspace }}/dist/mac-smoke/*.dmg
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
 
   # Upstream toolchain smoke: the portable-shell scripts must resolve the
   # pinned submodule's own Yarn/pnpm release on Windows.
