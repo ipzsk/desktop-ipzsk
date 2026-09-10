@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { runInNewContext } from 'node:vm'
+import { load } from 'js-yaml'
 import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
 
@@ -982,6 +983,39 @@ describe('published package surface', () => {
     expect(macosJob).toContain('run: yarn workspace ${{ matrix.workspace }} dist:mac-smoke')
     expect(macosJob).toContain('DSH_PACKAGE_CHECK_ALREADY_RAN: \'1\'')
     expect(macosJob).not.toContain('- run: yarn dist:mac-smoke')
+  })
+
+  it('exposes signing secrets only to checked master builds', () => {
+    const workflow = load(ciWorkflow) as {
+      on: Record<string, unknown>
+      env?: Record<string, string>
+      jobs: Record<string, {
+        needs?: string | string[]
+        env?: Record<string, string>
+        steps: Array<{ name?: string; if?: string; env?: Record<string, string>; run?: string }>
+      }>
+    }
+    expect(workflow.on).not.toHaveProperty('pull_request_target')
+    expect(JSON.stringify(workflow.env ?? {})).not.toContain('secrets.')
+    const credentialSteps = Object.entries(workflow.jobs).flatMap(([jobName, job]) => {
+      expect(JSON.stringify(job.env ?? {})).not.toContain('secrets.')
+      return job.steps.filter(step => JSON.stringify(step).includes('secrets.'))
+        .map(step => ({ jobName, job, step }))
+    })
+    expect(credentialSteps).toHaveLength(1)
+    const { jobName, job, step } = credentialSteps[0]!
+    expect(jobName).toBe('desktop-macos')
+    expect(job.needs).toContain('check')
+    expect(step.if).toBe("github.event_name != 'pull_request' && github.ref == 'refs/heads/master'")
+    expect(step.env).toMatchObject({
+      MAC_CERT_P12_BASE64: '${{ secrets.MAC_CERT_P12_BASE64 }}',
+      CSC_KEY_PASSWORD: '${{ secrets.CSC_KEY_PASSWORD }}',
+      MACOS_SIGN_IDENTITY: '${{ secrets.MACOS_SIGN_IDENTITY }}',
+      APPLE_API_KEY_BASE64: '${{ secrets.APPLE_API_KEY_BASE64 }}',
+      APPLE_API_KEY_ID: '${{ secrets.APPLE_API_KEY_ID }}',
+      APPLE_API_ISSUER: '${{ secrets.APPLE_API_ISSUER }}',
+    })
+    expect(job.steps.find(step => step.name === 'Remove notarization private key')?.if).toBe('always()')
   })
 
   it('skips product packaging only for documentation-only changes', () => {

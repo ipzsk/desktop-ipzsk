@@ -71,7 +71,7 @@ describe('macOS release command boundary', () => {
       args: [
         'exec', 'electron-builder', '--mac', 'dmg', '--universal',
         '--config.forceCodeSigning=true', '--config.mac.notarize=true',
-        '--config.npmRebuild=false',
+        '--config.npmRebuild=false', '--config.dmg.sign=true', '--publish', 'never',
         '--config.directories.output=/repo/dsh-plugin-desktop/dist/mac-release',
       ],
       cwd: '/repo/dsh-plugin-desktop',
@@ -126,6 +126,21 @@ describe('macOS release command boundary', () => {
     expect(calls[1]?.env.MAC_CERT_P12_BASE64).toBeUndefined()
     expect(calls[1]?.env.MACOS_SIGN_IDENTITY).toBeUndefined()
     expect(calls[2]?.env).toEqual({ PATH: '/usr/bin' })
+  })
+
+  it('reuses a completed CI package gate without exposing credentials to verification', () => {
+    const calls: CommandCall[] = []
+    releaseMac(baseOptions({
+      PATH: '/usr/bin',
+      DSH_PACKAGE_CHECK_ALREADY_RAN: '1',
+      APPLE_KEYCHAIN_PROFILE: 'dsh-notary',
+      APPLE_API_KEY_BASE64: 'encoded-private-key-must-be-stripped',
+    }, calls))
+
+    expect(calls).toHaveLength(2)
+    expect(calls[0]?.args).toContain('electron-builder')
+    expect(calls[1]?.args[0]).toBe('scripts/verify-mac-release.ts')
+    expect(calls[1]?.env).toEqual({ PATH: '/usr/bin', DSH_PACKAGE_CHECK_ALREADY_RAN: '1' })
   })
 
   it('rejects development signing before running any command', () => {
