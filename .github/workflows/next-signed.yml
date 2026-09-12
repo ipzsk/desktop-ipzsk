@@ -31,8 +31,14 @@ jobs:
         run: node scripts/run.mjs install
       - name: Build official shell, Host and UI
         run: node scripts/run.mjs build
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install document test dependencies
+        run: python -m pip install -r tests/requirements.txt
       - name: Verify bootstrap and document plugin
         run: |
+          node plugins/doc-to-excel/scripts/build.mjs
           node --test tests/*.test.mjs
           node --test plugins/doc-to-excel/tests/*.test.js
       - name: Sign, notarize and verify Next

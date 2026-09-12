@@ -6,5 +6,6 @@ plugins/*/.venv/
 plugins/*/__pycache__/
 plugins/*/scripts/__pycache__/
 plugins/*/tests/__pycache__/
-plugins/*/lib/
+plugins/imagegen/lib/
+plugins/doc-to-excel/lib/client.js
 plugins/*/docs/videos/
