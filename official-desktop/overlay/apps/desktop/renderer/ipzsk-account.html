@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'">
+    <title>IPZSK 账户</title>
+    <link rel="stylesheet" href="ipzsk-account.css">
+  </head>
+  <body>
+    <main>
+      <header><span class="brand">IPZSK</span><span class="caption">你的 AI 工作台</span></header>
+      <section id="login" hidden>
+        <h1>登录 IPZSK</h1>
+        <p>登录后自动连接模型服务，网页与客户端共用账户点数。</p>
+        <form id="login-form">
+          <label for="email">邮箱</label><input id="email" type="email" maxlength="254" autocomplete="username" required>
+          <label for="password">密码</label><input id="password" type="password" maxlength="128" autocomplete="current-password" required>
+          <label class="checkbox"><input id="remember" type="checkbox">在此设备记住登录</label>
+          <p id="remember-notice" class="caption" hidden>系统加密存储不可用，本次登录不会保存在设备上。</p>
+          <button id="sign-in" type="submit">登录并进入工作台</button>
+        </form>
+        <button id="account-site" class="quiet" type="button">注册账户 / 找回密码</button>
+      </section>
+      <section id="account" hidden>
+        <div class="title-row"><div><h1>账户点数</h1><p id="account-email"></p></div><button id="refresh" class="quiet" type="button">刷新</button></div>
+        <div class="wallet"><div><span class="caption">可用点数</span><strong id="available">—</strong></div><p id="frozen">正在读取余额…</p></div>
+        <form id="redeem-form">
+          <label for="voucher">充值码</label>
+          <div class="input-row"><input id="voucher" maxlength="100" autocomplete="off" required placeholder="输入充值码"><button id="redeem" type="submit">兑换充值码</button></div>
+        </form>
+        <p class="caption">10 元 = 1000 点。文字按 Token 费率 × 2.5 结算；图片按最终上游费用 × 2.5 结算。</p>
+        <h2>消费记录</h2>
+        <div class="table-wrap"><table><thead><tr><th>时间 / 请求编号</th><th>模型</th><th>输入 / 输出 Token</th><th>消耗</th></tr></thead><tbody id="rows"></tbody></table></div>
+        <p id="empty" hidden>暂无消费记录。</p>
+        <div class="pagination"><button id="previous" class="quiet" type="button">上一页</button><span id="page">第 1 页</span><button id="next" class="quiet" type="button">下一页</button></div>
+        <footer><button id="sign-out" class="quiet" type="button">退出登录并关闭应用</button></footer>
+      </section>
+      <p id="notice" role="status" aria-live="polite"></p>
+    </main>
+    <script src="ipzsk-account.js"></script>
+  </body>
+</html>

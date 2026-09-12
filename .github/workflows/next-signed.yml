@@ -1,0 +1,57 @@
+name: IPZSK Next signed macOS
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/next-signed-build]
+    paths:
+      - official-desktop/**
+      - .github/workflows/next-signed.yml
+permissions:
+  contents: read
+concurrency:
+  group: ipzsk-next-signing-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  signed-mac:
+    runs-on: macos-15
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: official-desktop
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.17.0
+      - name: Prepare build tools
+        run: corepack enable
+      - name: Install pinned official dependencies
+        run: node scripts/run.mjs install
+      - name: Build official shell, Host and UI
+        run: node scripts/run.mjs build
+      - name: Verify bootstrap and document plugin
+        run: |
+          node --test tests/*.test.mjs
+          node --test plugins/doc-to-excel/tests/*.test.js
+      - name: Sign, notarize and verify Next
+        env:
+          MAC_CERT_P12_BASE64: ${{ secrets.MAC_CERT_P12_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: node scripts/with-signing-credentials.mjs --reuse-build
+      - name: Upload signed installer
+        uses: actions/upload-artifact@v6
+        with:
+          name: IPZSK-Desktop-Next-signed-arm64
+          path: |
+            official-desktop/artifacts/signed/*.dmg
+            official-desktop/artifacts/signed/SHA256SUMS.txt
+            official-desktop/artifacts/signed/SIGNED.txt
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0

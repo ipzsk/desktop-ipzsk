@@ -1,0 +1,10 @@
+.build/
+artifacts/
+node_modules/
+plugins/*/node_modules/
+plugins/*/.venv/
+plugins/*/__pycache__/
+plugins/*/scripts/__pycache__/
+plugins/*/tests/__pycache__/
+plugins/*/lib/
+plugins/*/docs/videos/

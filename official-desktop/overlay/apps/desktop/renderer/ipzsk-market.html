@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self'; frame-src 'none'; object-src 'none'">
+  <title>IPZSK 插件市场</title>
+  <link rel="stylesheet" href="ipzsk-market.css">
+</head>
+<body>
+  <main>
+    <header><div><h1>IPZSK 插件市场</h1><p>经过 IPZSK 审核，安装包来自开发者的 GitHub Release。</p></div><button id="refresh" type="button">检查更新</button></header>
+    <p id="status" role="status" aria-live="polite"></p>
+    <p id="empty" hidden>暂无已上架插件。</p>
+    <section id="plugins" aria-label="已审核插件"></section>
+  </main>
+  <script src="ipzsk-market.js"></script>
+</body>
+</html>

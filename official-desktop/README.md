@@ -1,0 +1,57 @@
+# IPZSK Desktop Next
+
+IPZSK Desktop Next is the official DeepSeek Harness Electron architecture with IPZSK account, model and plugin integrations. This directory owns the downstream overlay; the existing 2.x application and its pinned submodule remain separate.
+
+The current preview is `3.0.0-beta.2`, based on upstream `0.1.5-rc.2` at `c291e7961a515f6d7af9304e7fd1d257929aef26`. The complete downstream dsh package family, private Host and Electron shell share the product version. Vendored libraries retain their upstream versions.
+
+## Runtime
+
+- Electron launches the bundled upstream Node runtime as a separate process. Fetch traffic uses the official framed byte pipes and `dsh-app://`; the packaged application does not create a local Web listener.
+- The account window owns login, encrypted session storage, balance, usage and voucher redemption. A one-time private IPC exchange supplies validated model credentials to the Host. Credentials do not enter renderer state, process arguments, environment variables or configuration files.
+- Electron owns profile mutations. The IPZSK market re-fetches approved releases and checks archive identity, size, SHA-256 and desktop transport compatibility before using the official package lock and bundled pnpm.
+- Plugins remain independently installed profile dependencies. They are excluded from the immutable shared Host package set.
+- The preview uses `IPZSK Desktop Next` application data, separately from IPZSK Desktop 2.x. It does not migrate or rewrite existing sessions. Plugin job data lives outside the package profile so package operations and profile recovery do not replace it.
+
+## Build
+
+Use Node `^22.19.0` or `>=24`. The outer repository retains Yarn; the pinned official workspace uses its own pnpm `11.7.0` through Corepack.
+
+```sh
+cd official-desktop
+node scripts/prepare.mjs
+node scripts/run.mjs install
+node scripts/run.mjs build
+node scripts/run.mjs start
+```
+
+`prepare` verifies the pinned source archive checksum, restores only overlay-owned source files and applies reviewed patches into `.build/upstream`. It preserves dependencies and build outputs. No upstream submodule file is edited. `build` is headless; `start` explicitly opens the development application. Development mode follows the official policy that package mutations require a packaged application.
+
+```sh
+node scripts/package-preview.mjs
+```
+
+The local preview command currently builds macOS Apple Silicon. It retains the official runtime materialization, package graph, native payload and integrity checks. Its separately named preparation command omits signing only for the local preview; the original production signing and notarization commands remain intact. Preview artifacts have no updater configuration or publishing target.
+
+Production builds require the product's signing and notarization identity and a separately hosted update stream. `IPZSK_DESKTOP_UPDATE_ORIGIN` replaces the upstream production origin. This preview does not change the existing website, GitHub releases or 2.x update channel.
+
+## Validation
+
+```sh
+node --test tests/bootstrap-channel.test.mjs
+node tests/plugin-host-smoke.mjs
+```
+
+The Host smoke uses a temporary profile, synthetic Word/PDF files, the real Cordis loader, ModuleLoader and official response frame decoder. It checks Word-to-Excel download, PDF upload across a 4 MiB chunk boundary and absent Web listeners. It makes no paid model requests.
+
+Account, model and market behavior tests are copied to `.build/upstream/apps/desktop*/tests` with the overlay and run through the official Vitest setup. The document plugin also owns its Node and Python regression suites.
+
+## Source ownership
+
+- `upstream.lock.json`: immutable upstream source and downstream release identity.
+- `patches/`: small changes to official composition, lifecycle, branding and package installation.
+- `overlay/`: IPZSK account, market, model configuration and focused tests.
+- `plugins/`: separately packaged plugin sources.
+- `.build/`: generated sources, dependencies, logs and runtime inputs; excluded from Git.
+- `artifacts/`: local preview artifacts; excluded from Git.
+
+Upstream copyright, MIT license and third-party notices remain with the upstream runtime and packages.

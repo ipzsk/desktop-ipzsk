@@ -1,0 +1,19 @@
+{
+  "name": "ipzsk-official-desktop-build",
+  "version": "3.0.0-beta.2",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "scripts": {
+    "prepare:source": "node scripts/prepare.mjs",
+    "install:upstream": "node scripts/run.mjs install",
+    "build": "node scripts/run.mjs build",
+    "start": "node scripts/run.mjs start",
+    "test": "node --test tests/*.test.mjs",
+    "test:plugin-host": "node tests/plugin-host-smoke.mjs",
+    "package:preview": "node scripts/package-preview.mjs",
+    "package:signed": "node scripts/with-signing-credentials.mjs"
+  }
+}

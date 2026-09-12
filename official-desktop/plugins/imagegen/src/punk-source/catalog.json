@@ -1,0 +1,192 @@
+[
+  {
+    "id": "black-white-minimal-concept",
+    "name": "黑白极简概念",
+    "kind": "cover"
+  },
+  {
+    "id": "black-white-etching-editorial-cover",
+    "name": "黑白复古蚀刻版画封面",
+    "kind": "cover"
+  },
+  {
+    "id": "semantic-minimal-translation",
+    "name": "语义转译极简",
+    "kind": "cover"
+  },
+  {
+    "id": "retro-torn-collage",
+    "name": "复古手撕拼贴",
+    "kind": "cover"
+  },
+  {
+    "id": "block-world",
+    "name": "方块世界",
+    "kind": "cover"
+  },
+  {
+    "id": "giant-perspective-chinese-title",
+    "name": "巨型透视中文标题",
+    "kind": "cover"
+  },
+  {
+    "id": "interleaved-title-editorial-poster",
+    "name": "超大标题图文穿插",
+    "kind": "cover"
+  },
+  {
+    "id": "layered-paper-cut-concept-poster",
+    "name": "立体纸雕概念海报",
+    "kind": "cover"
+  },
+  {
+    "id": "paper-emboss-deboss-cover",
+    "name": "纸面击凸压凹封面",
+    "kind": "cover"
+  },
+  {
+    "id": "godot-2d-pixel-metaphor-poster",
+    "name": "Godot 2D 像素隐喻海报",
+    "kind": "cover"
+  },
+  {
+    "id": "osb-industrial-blue-line-metaphor",
+    "name": "OSB 工业蓝线条隐喻",
+    "kind": "cover"
+  },
+  {
+    "id": "brick-world",
+    "name": "积木世界",
+    "kind": "cover"
+  },
+  {
+    "id": "consulting-report-visual",
+    "name": "咨询报告视觉",
+    "kind": "cover"
+  },
+  {
+    "id": "research-journal-concept",
+    "name": "科研期刊概念",
+    "kind": "cover"
+  },
+  {
+    "id": "retro-diffuse-gradient",
+    "name": "复古弥散渐变",
+    "kind": "cover"
+  },
+  {
+    "id": "midcentury-surreal-editorial-cover",
+    "name": "复古时代错位编辑封面",
+    "kind": "cover"
+  },
+  {
+    "id": "minimal-public-space-photography",
+    "name": "极简公共空间摄影",
+    "kind": "cover"
+  },
+  {
+    "id": "business-magazine-front-page",
+    "name": "商业杂志头版",
+    "kind": "cover"
+  },
+  {
+    "id": "black-white-gray-avant-geometry",
+    "name": "黑白灰先锋几何",
+    "kind": "cover"
+  },
+  {
+    "id": "black-red-silhouette",
+    "name": "黑红剪影",
+    "kind": "cover"
+  },
+  {
+    "id": "avant-retro-architecture-poster",
+    "name": "先锋复古建筑海报",
+    "kind": "cover"
+  },
+  {
+    "id": "retro-ink-dot-matrix-metaphor",
+    "name": "复古油墨点阵隐喻",
+    "kind": "cover"
+  },
+  {
+    "id": "black-midcentury-modernist-cover",
+    "name": "黑色复古现代主义封面",
+    "kind": "cover"
+  },
+  {
+    "id": "silver-foil-blue-minimal",
+    "name": "银色锡纸蓝字",
+    "kind": "cover"
+  },
+  {
+    "id": "color-neo-constructivist-megastructure-poster",
+    "name": "彩色新构成主义巨构海报",
+    "kind": "cover"
+  },
+  {
+    "id": "retro-japanese-sci-fi-anime-cover",
+    "name": "复古日本科幻动画",
+    "kind": "cover"
+  },
+  {
+    "id": "french-minimal-ink-poster",
+    "name": "法式极简墨线海报",
+    "kind": "cover"
+  },
+  {
+    "id": "brand-collaboration-connection",
+    "name": "品牌协同连接",
+    "kind": "cover"
+  },
+  {
+    "id": "anthropic-research-style",
+    "name": "Anthropic Research 风格",
+    "kind": "cover"
+  },
+  {
+    "id": "kimi-stlye",
+    "name": "kimi风格",
+    "kind": "cover"
+  },
+  {
+    "id": "minimal-visual-metaphor",
+    "name": "极简视觉隐喻风",
+    "kind": "cover"
+  },
+  {
+    "id": "pixel-avatar",
+    "name": "像素头像",
+    "kind": "avatar"
+  },
+  {
+    "id": "grotesque-soul-sketch",
+    "name": "怪诞灵魂手绘",
+    "kind": "avatar"
+  },
+  {
+    "id": "messy-crayon-pet-portrait",
+    "name": "凌乱蜡笔宠物肖像",
+    "kind": "avatar"
+  },
+  {
+    "id": "fashion-sketch-observation",
+    "name": "时尚速写观察页",
+    "kind": "avatar"
+  },
+  {
+    "id": "polaroid-keepsake",
+    "name": "拍立得纪念卡",
+    "kind": "avatar"
+  },
+  {
+    "id": "minimal-paper-acrylic-block-illustration",
+    "name": "极简纸感丙烯色块插画",
+    "kind": "avatar"
+  },
+  {
+    "id": "surreal-pop-up-paper-landscape",
+    "name": "立体人物扁平景色纸艺",
+    "kind": "avatar"
+  }
+]
