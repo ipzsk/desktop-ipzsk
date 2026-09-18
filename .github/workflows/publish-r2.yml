@@ -9,6 +9,20 @@ name: Publish installers to R2
 on:
   release:
     types: [published]
+  # CI 打完包直接调这个（同一次 run 的产物），省掉「先建 release 再手动补传」这一步。
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+      set_latest:
+        required: true
+        type: boolean
+      from_current_run:
+        description: '产物来自调用方这次 run 的 artifacts'
+        required: false
+        default: true
+        type: boolean
   workflow_dispatch:
     inputs:
       version:
@@ -65,12 +79,21 @@ jobs:
             echo "set_latest=${{ inputs.set_latest }}" >> "$GITHUB_OUTPUT"
           fi
 
+      # workflow_call：产物就在本次 run 里，直接下载，不用 gh run download。
+      - name: 取本次 run 的产物
+        if: inputs.from_current_run
+        uses: actions/download-artifact@v6
+        with:
+          path: artifacts
+
       - name: 取安装包
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p dist
-          if [[ "${{ inputs.source || 'release' }}" == "ci-run" ]]; then
+          if [[ -d artifacts ]]; then
+            find artifacts -type f \( -name '*.dmg' -o -name '*.exe' -o -name '*.msi' \) -exec mv -n {} dist/ \;
+          elif [[ "${{ inputs.source || 'release' }}" == "ci-run" ]]; then
             gh run download "${{ inputs.ci_run_id }}" -R "$GITHUB_REPOSITORY" -D artifacts
             find artifacts -type f \( -name '*.dmg' -o -name '*.exe' -o -name '*.msi' \) -exec mv -n {} dist/ \;
           else

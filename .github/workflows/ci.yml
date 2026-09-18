@@ -2,6 +2,17 @@ name: CI
 
 on:
   workflow_dispatch:
+    inputs:
+      publish_to_r2:
+        description: '打包成功后把安装包传到 R2（官网下载读的就是它）'
+        required: false
+        default: false
+        type: boolean
+      set_latest:
+        description: '同时更新 latest.json —— 官网会立刻切到这个版本'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -253,3 +264,36 @@ jobs:
       - run: corepack enable
       - run: yarn check:layout
       - run: yarn upstream:version
+
+  # 打包产物传 R2。官网的下载按钮读 R2 的 desktop/latest.json：私有仓库的 Release 链接对外 404，
+  # 所以「打完包」和「官网可下载」之间就差这一步，放在同一次 run 里跑，不用先建 release。
+  # 版本号只有一处真源：dsh-plugin-desktop/package.json。可复用工作流的 with: 不能跑脚本，所以先在这里读出来。
+  desktop-version:
+    needs: changes
+    if: inputs.publish_to_r2
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - id: read
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./dsh-plugin-desktop/package.json').version")"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "package.json 里的版本号不是 x.y.z：$version"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  publish-r2:
+    needs: [desktop-windows, desktop-macos, desktop-version]
+    if: inputs.publish_to_r2
+    permissions:
+      contents: read
+    uses: ./.github/workflows/publish-r2.yml
+    secrets: inherit
+    with:
+      version: ${{ needs.desktop-version.outputs.version }}
+      set_latest: ${{ inputs.set_latest }}
+      from_current_run: true
