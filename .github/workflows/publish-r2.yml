@@ -1,0 +1,149 @@
+name: Publish installers to R2
+
+# 官网的下载按钮读的是 R2 里的 desktop/latest.json（网关 GET /api/public/desktop-release 代签下载地址）。
+# 仓库是私有的，GitHub Release 的链接对外一律 404，所以安装包必须落到 R2 才是可下载的。
+#
+# 两种触发：
+#   - release: published —— 正式发版，从该 release 的附件取包，并更新 latest.json
+#   - workflow_dispatch —— 补传历史版本或补传某次 CI 产物；set_latest 决定动不动 latest.json
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号，x.y.z（不带 v）'
+        required: true
+      source:
+        description: '包从哪来'
+        required: true
+        default: release
+        type: choice
+        options: [release, ci-run]
+      ci_run_id:
+        description: 'source=ci-run 时填 CI 工作流的 run id'
+        required: false
+      set_latest:
+        description: '同时更新 latest.json（官网会立刻切到这个版本）'
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-r2-${{ github.event.release.tag_name || inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required   # R2 不认 aws-cli v2 默认加的 CRC32 尾部校验
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: 确定版本号
+        id: v
+        shell: bash
+        run: |
+          set -euo pipefail
+          raw="${{ github.event.release.tag_name || inputs.version }}"
+          version="${raw#v}"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "版本号必须是 x.y.z，拿到的是 $raw"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          # 预发布版本不许动 latest.json：官网只展示正式版。
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "set_latest=${{ github.event.release.prerelease && 'false' || 'true' }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "set_latest=${{ inputs.set_latest }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 取安装包
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          if [[ "${{ inputs.source || 'release' }}" == "ci-run" ]]; then
+            gh run download "${{ inputs.ci_run_id }}" -R "$GITHUB_REPOSITORY" -D artifacts
+            find artifacts -type f \( -name '*.dmg' -o -name '*.exe' -o -name '*.msi' \) -exec mv -n {} dist/ \;
+          else
+            gh release download "v${{ steps.v.outputs.version }}" -R "$GITHUB_REPOSITORY" -D dist \
+              -p '*.dmg' -p '*.exe' -p '*.msi'
+          fi
+          ls -l dist
+          [[ -n "$(ls -A dist)" ]] || { echo "没有拿到任何安装包"; exit 1; }
+
+      - name: 生成 manifest.json
+        id: manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.v.outputs.version }}" RELEASED_AT="${{ github.event.release.published_at || '' }}" \
+          node --input-type=module -e '
+            import { readdirSync, statSync, createReadStream, writeFileSync } from "node:fs";
+            import { createHash } from "node:crypto";
+            const sha256 = (p) => new Promise((res, rej) => {
+              const h = createHash("sha256");
+              createReadStream(p).on("data", (c) => h.update(c)).on("end", () => res(h.digest("hex"))).on("error", rej);
+            });
+            // 平台判定只看文件名：arm64 的 dmg 是 Apple Silicon，其余 dmg 归 Intel，exe/msi 归 Windows。
+            const platformOf = (name) => /\.dmg$/i.test(name) ? (/arm64/i.test(name) ? "mac" : "mac-intel")
+              : /\.(exe|msi)$/i.test(name) ? "windows" : null;
+            const files = [];
+            for (const name of readdirSync("dist").sort()) {
+              const platform = platformOf(name);
+              if (!platform) { console.log("跳过（不是安装包）：" + name); continue; }
+              if (files.some((f) => f.platform === platform)) throw new Error("同一平台有两个包，接口会判非法：" + name);
+              files.push({ platform, name, bytes: statSync("dist/" + name).size, sha256: await sha256("dist/" + name) });
+            }
+            if (!files.length) throw new Error("没有可识别的安装包");
+            const manifest = { version: process.env.VERSION, released_at: process.env.RELEASED_AT || new Date().toISOString(), files };
+            writeFileSync("dist/manifest.json", JSON.stringify(manifest, null, 2) + "\n");
+            console.log(JSON.stringify(manifest, null, 2));
+          '
+
+      - name: 上传到 R2
+        shell: bash
+        run: |
+          set -euo pipefail
+          EP="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          PREFIX="s3://${R2_BUCKET}/desktop/${{ steps.v.outputs.version }}"
+          for f in dist/*; do
+            name="$(basename "$f")"
+            [[ "$name" == manifest.json ]] && continue
+            echo "上传 $name"
+            aws s3 cp "$f" "$PREFIX/$name" --endpoint-url "$EP" \
+              --content-type application/octet-stream \
+              --cache-control 'public, max-age=31536000, immutable' --only-show-errors
+          done
+          aws s3 cp dist/manifest.json "$PREFIX/manifest.json" --endpoint-url "$EP" \
+            --content-type application/json --cache-control 'no-cache' --only-show-errors
+
+      - name: 更新 latest.json
+        if: steps.v.outputs.set_latest == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws s3 cp dist/manifest.json "s3://${R2_BUCKET}/desktop/latest.json" \
+            --endpoint-url "https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com" \
+            --content-type application/json --cache-control 'no-cache' --only-show-errors
+
+      - name: 核对官网接口
+        shell: bash
+        run: |
+          set -euo pipefail
+          # 网关直接读 R2，没有缓存层，所以传完就该能读到。
+          url="https://api.ipzsk.com/api/public/desktop-release?version=${{ steps.v.outputs.version }}"
+          for i in $(seq 1 10); do
+            body="$(curl -sS -H 'Origin: https://www.ipzsk.com' "$url" || true)"
+            echo "$body" | grep -q '"version"' && { echo "$body" | head -c 400; exit 0; }
+            sleep 6
+          done
+          echo "接口读不到这个版本：$body"; exit 1
