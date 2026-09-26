@@ -1,6 +1,5 @@
-/** Connect IPZSK resources to the official native signing and verification hooks. */
-import { spawnSync } from 'node:child_process'
-import { join } from 'node:path'
+/** Keep the official signing, ASAR layout and runtime verification hooks. */
+import { join, relative } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 export function signingBuildEnvironment(env) {
@@ -9,39 +8,23 @@ export function signingBuildEnvironment(env) {
 }
 
 export async function createSignedConfig(base, appRoot, env) {
-  const load = name => import(pathToFileURL(join(appRoot, 'scripts', name)).href)
-  const { resolveMacOSSigningEnvironment, resolveMacOSNotarizationEnvironment } = await load('desktop-release-environment.mjs')
-  const { verifyMacOSSignatureAfterSign, assertMacOSSignatureDetails } = await load('verify-macos-signature.mjs')
-  const { notarizeMacOSDiskImageArtifact } = await load('notarize-macos-disk-images.mjs')
-  const { verifyDesktopRuntime } = await import(pathToFileURL(join(appRoot, 'lib/types/runtime-tree.js')).href)
-  const expected = resolveMacOSSigningEnvironment(env)
-  resolveMacOSNotarizationEnvironment(env)
-  function apple(command, args) {
-    const result = spawnSync(command, args, { encoding: 'utf8', env: signingBuildEnvironment(env) })
-    if (result.error) throw result.error
-    if (result.status !== 0) throw new Error(`${command} verification failed: ${result.stderr}`)
-    return `${result.stdout}${result.stderr}`
-  }
-  const runtime = context => verifyDesktopRuntime(
-    join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`, 'Contents/Resources/dsh'),
-    context.packager.appInfo.version, { platform: 'darwin', arch: 'arm64' })
+  const { createElectronBuilderConfig } = await import(pathToFileURL(join(appRoot, 'scripts/electron-builder-config.mjs')).href)
+  const official = createElectronBuilderConfig({ ...env, IPZSK_DESKTOP_LOCAL_DISTRIBUTION: '1' })
   return {
-    ...base,
-    mac: { ...base.mac, identity: expected.signingIdentity, forceCodeSigning: true,
-      hardenedRuntime: true, notarize: true, signIgnore: ['/Contents/Resources/dsh(?:/|$)', '\\.pak$'] },
-    dmg: { ...base.dmg, sign: true },
-    afterPack: runtime,
-    afterSign: async context => {
-      await runtime(context)
-      verifyMacOSSignatureAfterSign(context, expected)
-    },
-    artifactBuildCompleted: artifact => notarizeMacOSDiskImageArtifact(artifact, env, expected, undefined, (path, identity) => {
-      apple('/usr/bin/codesign', ['--verify', '--strict', '--verbose=2', path])
-      assertMacOSSignatureDetails(apple('/usr/bin/codesign', ['--display', '--verbose=4', path]), identity)
-      apple('/usr/bin/xcrun', ['stapler', 'validate', path])
-      // A DMG is assessed as an opened disk image; "install" is for installer packages.
-      apple('/usr/sbin/spctl', ['--assess', '--type', 'open', '--context', 'context:primary-signature', '--verbose=4', path])
-    }),
+    ...official, ...base,
+    mac: { ...official.mac, icon: base.mac.icon, category: base.mac.category, target: ['dmg'] },
+    dmg: { ...official.dmg, writeUpdateInfo: false },
+    beforePack: official.beforePack, afterPack: official.afterPack,
+    afterSign: official.afterSign, artifactBuildCompleted: official.artifactBuildCompleted,
     publish: null,
   }
+}
+
+export async function createPreviewConfig(base, appRoot) {
+  const { officePackageDirectories } = await import(pathToFileURL(join(appRoot, '../../scripts/libreoffice-packages.mjs')).href)
+  return { ...base, beforePack: async context => {
+    const dsh = join(appRoot, '.desktop-build/targets/mac-arm64/dsh')
+    const office = await officePackageDirectories(dsh, { platform: 'darwin', arch: 'arm64' })
+    context.packager.config.asarUnpack = [...base.asarUnpack, ...office.map(directory => `**/${relative(dsh, directory).split('\\').join('/')}/**/*`)]
+  } }
 }

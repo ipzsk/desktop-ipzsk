@@ -19,7 +19,7 @@ interface LoadedImage {
   src: string
 }
 
-interface ImageToolViewProps extends ImageToolViewOwnerProps {
+type ImageToolViewProps = ImageToolViewOwnerProps & {
   sessionId: SessionId
 }
 
@@ -125,8 +125,8 @@ export function registerImageToolviews(ctx: ClientContext): void {
   }
 
   const ImageToolView = (props: ImageToolViewProps): React.JSX.Element => {
-    const refs = useMemo(() => imageRefsOf(props.block), [props.block])
-    const { status, message } = resultInfo(props.block)
+    const refs = useMemo(() => props.phase === 'preparing' ? [] : imageRefsOf(props.block), [props.block])
+    const { status, message } = props.phase === 'preparing' ? { status: 'running', message: '' } : resultInfo(props.block)
     const { images, error } = useAttachmentImages(props.sessionId, refs, load)
 
     useEffect(() => {

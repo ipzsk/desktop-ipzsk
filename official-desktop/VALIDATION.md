@@ -1,3 +1,21 @@
+# 3.0.0-beta.3 / Harness 0.1.7-rc.2 验证
+
+升级基线：`477b4f420553e8a52c2fbccc464d7561b239c443`（2026-09-24 官方版本），产品版本 `3.0.0-beta.3`。本次使用合成数据和临时目录，不访问真实账户或付费模型。
+
+- `node scripts/run.mjs install`：固定 lockfile 安装通过。
+- `node scripts/run.mjs build`：官方完整构建通过，包含 TypeScript、Electron 主进程/预加载和 Web 客户端。
+- 官方 Vitest 中的 `apps/desktop/tests/ipzsk`、`apps/desktop-host/tests/ipzsk`：60 项通过，覆盖账号协议、模型流式调用、私有启动数据、真实 pnpm 插件安装、校验/降级限制、共享锁和旧生图版本升级。
+- `node --test tests/*.test.mjs`：13 项通过，覆盖真实子进程启动、超时、取消、父进程断开、无效凭据和签名环境隔离及打包配置。
+- 相邻上游测试（宿主进程、项目管理、配置编辑、包操作）：153 项通过、1 项平台条件跳过。
+- 官方 oxlint 定向检查通过，覆盖插件安装、首装升级、启动数据、Host 入口和包操作；`git diff --check` 通过。
+- 作图插件 `scripts/smoke.mjs`：全部场景通过，含 jsdom 中的侧栏、生成面板、设置页注册和聊天图片操作。
+- `node scripts/build-plugins.mjs`：文档插件及作图插件构建通过，作图插件类型检查通过。
+- `node tests/plugin-host-smoke.mjs --imagegen`：真实官方 Web Host、模块图、认证拒绝、模型目录、插件配置保存与凭据脱敏、模拟作图及图片 GET/HEAD、Word→Excel 下载、超过 4 MiB PDF 分块上传与哈希核对通过。
+
+本次未进行真实账号登录、付费模型推理、数千页实际 PDF 压力测试、macOS 签名/公证打包、Windows 构建或官网发布。下面保留旧版本历史记录，不能作为 beta.3 的安装包验收结果。
+
+---
+
 # 3.0.0-beta.1 验证记录
 
 验证日期：2026-09-12。平台：macOS Apple Silicon。

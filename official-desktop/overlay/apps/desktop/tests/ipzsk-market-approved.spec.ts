@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { approvedCatalog, downloadApproved, isApprovedArchiveSpec, verifyArchive } from '../src/ipzsk-market-approved.ts'
 import { marketFixture } from './ipzsk-market-fixture.ts'
 
-const baseline = '0.1.5-rc.2'
+const baseline = '0.1.7-rc.2'
 describe('IPZSK reviewed artifact boundary', () => {
   it('accepts exact reviewed GitHub identities and blocks host packages or unpinned data', () => {
     const { plugin } = marketFixture()
@@ -22,10 +22,9 @@ describe('IPZSK reviewed artifact boundary', () => {
     const unsafe = marketFixture({ dsh: { bundle: { patch: '../outside.yml' }, desktop: { transport: 'connection', minVersion: baseline } } })
     expect(() => verifyArchive(unsafe.bytes, unsafe.plugin, baseline)).toThrow('入口')
   })
-  it('rejects old HTTP plugins and future APIs before installation', () => {
+  it('rejects missing desktop compatibility metadata and future APIs before installation', () => {
     for (const fields of [{ dsh: { bundle: { patch: './cordis.patch.yml' } } },
-      { peerDependencies: { '@deepseek-ai/dsh-host-webserver': '>=0.1.2-0' } },
-      { dsh: { bundle: { patch: './cordis.patch.yml' }, desktop: { transport: 'connection', minVersion: '0.1.6' } } }]) {
+      { dsh: { bundle: { patch: './cordis.patch.yml' }, desktop: { transport: 'connection', minVersion: '0.2.0' } } }]) {
       const { plugin, bytes } = marketFixture(fields)
       expect(() => verifyArchive(bytes, plugin, baseline)).toThrow(/适配|webServer/u)
     }

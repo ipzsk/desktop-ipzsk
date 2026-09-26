@@ -107,9 +107,11 @@ export function apply(ctx: ClientContext): void {
   // registered into the official plugin-configuration slot (Settings →
   // Plugins → Configurable) as a standalone card.
   const settingsCard = new ImageGenSettingsCardController(scope)
-  ctx.slots.inject('settings.plugin.item', () => ctx.slots.register({
-    name: 'settings.plugin.item',
-    key: 'dsh-imagegen',
+  ctx.slots.inject('settings.plugins.tab', () => ctx.slots.register({
+    name: 'settings.plugins.tab',
+    id: 'dsh-imagegen',
+    order: 30,
+    label: () => tt('entry.image'),
     locale: NS,
     inject: () => settingsCard.inject(),
   }, ImageGenSettingsCard))

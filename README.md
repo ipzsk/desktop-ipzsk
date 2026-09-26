@@ -1,3 +1,5 @@
+> 本分支新增官方底层升级：**IPZSK Desktop Next 3.0.0-beta.3 / DeepSeek Harness 0.1.7-rc.2**。保留 IPZSK 登录、模型和插件，源码入口及构建方式见 [official-desktop/README.zh.md](official-desktop/README.zh.md)。以下内容介绍原有 2.x 客户端。
+
 <p align="center">
   <a href="https://dshdesktop.cn"><img src="assets/desktop-hero-zh.png" alt="DSH Desktop：基于 DeepSeek Harness 构建的开源桌面客户端" width="100%"></a>
 </p>

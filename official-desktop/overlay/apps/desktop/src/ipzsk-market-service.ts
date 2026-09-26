@@ -1,9 +1,9 @@
 /** Main-process catalog authority and reviewed install orchestration. */
 import { approvedCatalog, assertPluginUpgrade, downloadApproved, pluginInstallState, IPZSK_DESKTOP_API_VERSION, type ApprovedPlugin, type PluginInstallState } from './ipzsk-market-approved.ts'
-import type { DesktopProjectHooks, DesktopProjectManager } from './project-manager.ts'
+import type { DesktopProjectHooks, IpzskPluginInstaller } from './ipzsk-plugin-installer.ts'
 
 export interface IpzskMarketOptions {
-  readonly manager: Pick<DesktopProjectManager, 'listPlugins' | 'installApproved'>
+  readonly manager: Pick<IpzskPluginInstaller, 'listPlugins' | 'installApproved'>
   readonly hooks: DesktopProjectHooks
   readonly catalog: () => Promise<unknown>
   readonly packaged: boolean
@@ -18,7 +18,7 @@ export class IpzskMarketService {
 
   constructor(private readonly options: IpzskMarketOptions, private readonly request = fetch) {}
 
-  async catalog(): Promise<{ plugins: (ApprovedPlugin & { installState: PluginInstallState })[]; installed: ReturnType<DesktopProjectManager['listPlugins']>; canInstall: boolean }> {
+  async catalog(): Promise<{ plugins: (ApprovedPlugin & { installState: PluginInstallState })[]; installed: ReturnType<IpzskPluginInstaller['listPlugins']>; canInstall: boolean }> {
     const plugins = approvedCatalog(await this.options.catalog())
     const installed = this.options.packaged ? this.options.manager.listPlugins() : []
     return { plugins: plugins.map(plugin => ({ ...plugin,

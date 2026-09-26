@@ -1,10 +1,10 @@
-/** First-install-only preview resources; these are independent plugins, not remote market releases. */
+/** Bundled independent plugins: first installation and the explicit Harness 0.1.7 image plugin upgrade. */
 import { randomUUID } from 'node:crypto'
 import { lstat, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import { isAbsolute, join } from 'node:path'
 import { valid } from 'semver'
 import { IPZSK_DESKTOP_API_VERSION, verifyArchive } from './ipzsk-market-approved.ts'
-import type { DesktopProjectHooks, DesktopProjectManager } from './project-manager.ts'
+import type { DesktopProjectHooks, IpzskPluginInstaller } from './ipzsk-plugin-installer.ts'
 
 export const IPZSK_PREVIEW_FILES = {
   'dsh-doc-to-excel': 'dsh-doc-to-excel.tgz',
@@ -25,8 +25,8 @@ export interface BundledPreviewManifest {
   readonly plugins: readonly BundledPreviewPlugin[]
 }
 
-type PreviewInstaller = Pick<DesktopProjectManager, 'listPlugins' | 'installBundledPreview'>
-type PreviewManager = PreviewInstaller & Pick<DesktopProjectManager, 'paths' | 'applyRelease'>
+type PreviewInstaller = Pick<IpzskPluginInstaller, 'listPlugins' | 'installBundledPreview'>
+type PreviewManager = PreviewInstaller & Pick<IpzskPluginInstaller, 'paths' | 'applyRelease'>
 
 function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -44,11 +44,13 @@ export function parseBundledPreviewPlugin(value: unknown): BundledPreviewPlugin 
     || typeof value.sizeBytes !== 'number' || !Number.isSafeInteger(value.sizeBytes) || value.sizeBytes < 1 || value.sizeBytes > 50_000_000) {
     throw new Error('预览插件清单无效。')
   }
-  return { packageName, version: value.version, file: IPZSK_PREVIEW_FILES[packageName], sha256: value.sha256, sizeBytes: value.sizeBytes }
+  return { packageName, version: value.version, file: IPZSK_PREVIEW_FILES[packageName],
+    sha256: value.sha256, sizeBytes: value.sizeBytes }
 }
 
 export function parseBundledPreviewManifest(value: unknown): BundledPreviewManifest {
-  if (!record(value) || value.schemaVersion !== 1 || !Array.isArray(value.plugins) || value.plugins.length < 1 || value.plugins.length > 2) {
+  if (!record(value) || value.schemaVersion !== 1 || !Array.isArray(value.plugins)
+    || value.plugins.length < 1 || value.plugins.length > 2) {
     throw new Error('预览插件清单无效。')
   }
   const plugins = value.plugins.map((entry: unknown) => parseBundledPreviewPlugin(entry))
@@ -63,8 +65,11 @@ async function regularFile(path: string, maximum: number): Promise<void> {
 
 /** Called only by Electron startup after profile preparation, with process.resourcesPath. */
 export async function installBundledPreviewPlugins(
-  manager: PreviewInstaller, resourcesPath: string, hooks: DesktopProjectHooks,
+  manager: PreviewInstaller, resourcesPath: string, hooks: DesktopProjectHooks, mode: 'seed' | 'upgrade' = 'seed',
 ): Promise<readonly string[]> {
+  const inventory = manager.listPlugins()
+  const legacyImage = inventory.find(plugin => plugin.name === '@dickpy/dsh-imagegen' && plugin.version === '1.8.0-beta.1')
+  if (mode === 'upgrade' && legacyImage === undefined) return []
   if (!isAbsolute(resourcesPath)) throw new Error('预览插件资源目录必须由桌面客户端提供。')
   const directory = join(resourcesPath, 'plugins')
   const directoryInfo = await lstat(directory)
@@ -72,18 +77,19 @@ export async function installBundledPreviewPlugins(
   const manifestPath = join(directory, 'manifest.json')
   await regularFile(manifestPath, 16_384)
   const manifest = parseBundledPreviewManifest(JSON.parse(await readFile(manifestPath, 'utf8')))
-  const installed = new Set(manager.listPlugins().map(plugin => plugin.name))
+  const installed = new Set(inventory.map(plugin => plugin.name))
   const added: string[] = []
   for (const plugin of manifest.plugins) {
-    // An app update or retried first-run must never replace or re-enable an installed plugin.
-    if (installed.has(plugin.packageName)) continue
+    // Upgrade only the shipped version whose old settings API cannot run on 0.1.7.
+    const replaceVersion = legacyImage !== undefined && plugin.packageName === legacyImage.name && plugin.version === '1.8.0-beta.2' ? legacyImage.version : undefined
+    if (mode === 'upgrade' && replaceVersion === undefined || installed.has(plugin.packageName) && replaceVersion === undefined) continue
     const archive = join(directory, plugin.file)
     await regularFile(archive, plugin.sizeBytes)
     const bytes = await readFile(archive)
     verifyArchive(bytes, { package_name: plugin.packageName, version: plugin.version,
       sha256: plugin.sha256, size_bytes: plugin.sizeBytes }, IPZSK_DESKTOP_API_VERSION)
     // The manager checks absence again after taking the shared package lock.
-    if (await manager.installBundledPreview(plugin, bytes, hooks)) added.push(plugin.packageName)
+    if (await manager.installBundledPreview(plugin, bytes, hooks, replaceVersion)) added.push(plugin.packageName)
   }
   return added
 }
@@ -106,7 +112,7 @@ async function writeSeedStatus(path: string, status: SeedStatus): Promise<void> 
     await writeFile(temporary, JSON.stringify({ schemaVersion: 1, status }) + '\n', { mode: 0o600, flag: 'wx' })
     await rename(temporary, path)
   } finally {
-    await unlink(temporary).catch(error => { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error })
+    await unlink(temporary).catch((error: unknown) => { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error })
   }
 }
 
@@ -129,7 +135,10 @@ export async function prepareBundledPreviewProfile(manager: PreviewManager, reso
     await writeSeedStatus(statePath, status)
   }
   await manager.applyRelease()
-  if (status === 'done') return
+  if (status === 'done') {
+    await installBundledPreviewPlugins(manager, resourcesPath, { beforeChange: async () => {}, afterChange: async () => {} }, 'upgrade')
+    return
+  }
   await installBundledPreviewPlugins(manager, resourcesPath, { beforeChange: async () => {}, afterChange: async () => {} })
   await writeSeedStatus(statePath, 'done')
 }

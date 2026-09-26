@@ -2,11 +2,10 @@
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 import { prepare, source, root, pin } from './prepare.mjs'
 import { buildPlugins } from './build-plugins.mjs'
-import { createSignedConfig, signingBuildEnvironment } from './signed-config.mjs'
+import { signingBuildEnvironment } from './signed-config.mjs'
 
 const packagingEnvironment = { ...process.env }
 // Imported plugin builders and source preparation inherit only non-secret variables.
@@ -61,12 +60,12 @@ await run(['run', 'prepare:runtime'], appRoot)
 await run(['run', 'prepare:packages'], appRoot)
 
 if (signed) {
-  await run(['run', 'prepare:dsh'], appRoot)
+  await run(['run', 'prepare:dsh'], appRoot, true)
 } else {
 // Reuse the official materialization and integrity checks in a separately named
 // local-preview command. The original release/signing entry point stays intact.
 const original = readFileSync(join(appRoot, 'scripts/prepare-dsh.ts'), 'utf8')
-const signBlock = "    if (process.platform === 'darwin') {\n      await signMacOSRuntime(DSH_OUTPUT_ROOT, resolveDesktopAppId(process.env), resolveMacOSSigningEnvironment(process.env))\n    }"
+const signBlock = "    if (process.platform === 'darwin') {\n      await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'sign:dsh-native', () => signMacOSRuntime(DSH_OUTPUT_ROOT, resolveDesktopAppId(process.env), resolveMacOSSigningEnvironment(process.env), join(BUILD_PATHS.root, 'signature-cache')))\n      await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'sign:primary-native', () => signMacOSRuntime(join(RUNTIME_ROOT, 'primary-runtime'), resolveDesktopAppId(process.env), resolveMacOSSigningEnvironment(process.env), join(BUILD_PATHS.root, 'signature-cache')))\n    }"
 if (original.split(signBlock).length !== 2) throw new Error('Upstream signing step changed; review the preview preparation command')
 const storeDeclaration = "const STORE_ROOT = join(BUILD_ROOT, 'store')"
 if (original.split(storeDeclaration).length !== 2) throw new Error('Upstream package cache changed; review the preview preparation command')
@@ -94,7 +93,7 @@ for (const plugin of pluginSources) {
   const manifest = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8'))
   if (manifest.name !== plugin.name || manifest.dsh?.desktop?.transport !== 'connection') throw new Error(`Preview plugin is not ready: ${plugin.name}`)
   await new Promise((resolve, reject) => {
-    const child = spawn('npm', ['pack', '--ignore-scripts', '--pack-destination', bundled], { cwd: directory, env, stdio: 'inherit' })
+    const child = spawn('npm', ['pack', '--ignore-scripts', '--pack-destination', bundled], { cwd: directory, env: signingBuildEnvironment(env), stdio: 'inherit' })
     child.once('error', reject)
     child.once('exit', code => code === 0 ? resolve() : reject(new Error(`Plugin pack failed: ${plugin.name}`)))
   })
@@ -110,32 +109,33 @@ let config = {
   appId: pin.appId, productName: pin.productName,
   artifactName: 'IPZSK.Desktop.Next-${version}-${arch}.${ext}',
   directories: { output: artifacts },
+  extraMetadata: { dshDesktopAppId: pin.appId, dshBuildCommit: pin.commit },
   asar: true,
-  files: ['lib/*.js', 'lib/*.cjs', 'renderer/**/*', 'package.json', 'ipzsk-build.json'],
+  electronFuses: { runAsNode: true },
+  electronDist: join(target, 'electron'),
+  asarUnpack: ['**/*.{node,dylib,dll,so,exe}', '**/*.so.*', '**/spawn-helper', '**/@vscode/ripgrep-*/bin/rg', '**/node_modules/@deepseek-ai/libreoffice-kit-darwin-arm64/**/*'],
+  files: ['lib/*.js', 'lib/*.cjs', 'lib/welcome/**/*', 'renderer/**/*', 'package.json', 'ipzsk-build.json',
+    { from: join(target, 'dsh'), to: 'dsh' },
+    { from: join(target, 'dsh/node_modules'), to: 'dsh/node_modules' }],
   extraResources: [
     { from: join(target, 'runtime'), to: 'runtime' },
-    { from: join(target, 'dsh'), to: 'dsh' },
-    { from: join(target, 'dsh/node_modules'), to: 'dsh/node_modules' },
     { from: bundled, to: 'plugins', filter: ['manifest.json', 'dsh-doc-to-excel.tgz', 'dsh-imagegen.tgz'] },
   ],
-  mac: { category: 'public.app-category.productivity', icon: join(root, 'assets/app-icon.png'), identity: null, notarize: false, target: ['dmg'], signIgnore: ['/Contents/Resources/dsh(?:/|$)'] },
+  mac: { category: 'public.app-category.productivity', icon: join(root, 'assets/app-icon.png'), identity: null, notarize: false, target: ['dmg'], signIgnore: ['/Contents/Resources/app\\.asar\\.unpacked/dsh(?:/|$)', '/Contents/Resources/runtime/primary-runtime(?:/|$)'] },
   dmg: { sign: false, writeUpdateInfo: false },
   npmRebuild: false,
   publish: null,
 }
-if (signed) config = await createSignedConfig(config, appRoot, env)
-const electronDist = join(dirname(createRequire(join(appRoot, 'package.json')).resolve('electron/package.json')), 'dist')
-if (existsSync(join(electronDist, 'Electron.app'))) config.electronDist = electronDist
-// Functions in the signed hooks cannot be serialized to JSON.
-const configPath = signed ? 'electron-builder.ipzsk-signed.mjs' : 'electron-builder.preview.json'
-if (signed) {
-  const base = { ...config, afterPack: undefined, afterSign: undefined, artifactBuildCompleted: undefined }
-  writeFileSync(join(appRoot, configPath), `import { createSignedConfig } from ${JSON.stringify(new URL('./signed-config.mjs', import.meta.url).href)};\nexport default await createSignedConfig(${JSON.stringify(base)}, ${JSON.stringify(appRoot)}, process.env);\n`)
-} else writeFileSync(join(appRoot, configPath), JSON.stringify(config, null, 2) + '\n')
+// Preserve executable upstream hooks for both signed builds and local previews.
+const configPath = signed ? 'electron-builder.ipzsk-signed.mjs' : 'electron-builder.ipzsk-preview.mjs'
+const factory = signed ? 'createSignedConfig' : 'createPreviewConfig'
+writeFileSync(join(appRoot, configPath), `import { ${factory} } from ${JSON.stringify(new URL('./signed-config.mjs', import.meta.url).href)};\nexport default await ${factory}(${JSON.stringify(config)}, ${JSON.stringify(appRoot)}, process.env);\n`)
 await run(['exec', 'electron-builder', '--config', configPath, '--mac', '--arm64', '--publish', 'never'], appRoot, signed)
-await run(['exec', 'node', '--input-type=module', '-e',
-  "import { verifyDesktopRuntime } from './apps/desktop/lib/types/runtime-tree.js'; await verifyDesktopRuntime(process.argv[1], process.argv[2], { platform: 'darwin', arch: 'arm64' }); console.log('Packaged desktop runtime integrity verified')",
-  join(artifacts, 'mac-arm64', `${pin.productName}.app`, 'Contents/Resources/dsh'), pin.productVersion])
+await run(['exec', 'tsx', '-e',
+  "import { readDesktopRuntime } from './apps/desktop/src/runtime-tree.ts'; import { smokePreparedRuntime } from './apps/desktop/scripts/smoke-prepared-runtime.ts'; void smokePreparedRuntime(process.argv[1], process.argv[2], process.argv[3], readDesktopRuntime(process.argv[4]));",
+  join(artifacts, 'mac-arm64', `${pin.productName}.app`, 'Contents/Resources/app.asar/dsh'),
+  join(artifacts, 'mac-arm64', `${pin.productName}.app`, 'Contents/MacOS', pin.productName),
+  join(artifacts, 'mac-arm64', `${pin.productName}.app`, 'Contents/Resources/runtime'), join(target, 'dsh')])
 await run(['exec', 'node', join(root, 'tests/packaged-plugin-startup.mjs'),
   join(artifacts, 'mac-arm64', `${pin.productName}.app`, 'Contents/Resources')])
 if (signed) {

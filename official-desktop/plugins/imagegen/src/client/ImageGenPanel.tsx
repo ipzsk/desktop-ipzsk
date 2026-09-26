@@ -290,13 +290,13 @@ async function prepareConversationImage(image: GeneratedImage, index: number): P
 
 /** Follow the native session selection while the image panel stays mounted. */
 function useCurrentSessionId(sessions: ISessions | undefined): SessionId | undefined {
-  const [sessionId, setSessionId] = useState<SessionId | undefined>(() => sessions?.list.getSnapshot().current)
+  const [sessionId, setSessionId] = useState<SessionId | undefined>(() => sessions === undefined ? undefined : Object.values(sessions.list.getSnapshot().byId).find(row => (row.retainedBy.mainView ?? 0) > 0)?.id)
   useEffect(() => {
     if (sessions === undefined) {
       setSessionId(undefined)
       return
     }
-    const sync = (): void => { setSessionId(sessions.list.getSnapshot().current) }
+    const sync = (): void => { setSessionId(Object.values(sessions.list.getSnapshot().byId).find(row => (row.retainedBy.mainView ?? 0) > 0)?.id) }
     sync()
     return sessions.list.subscribe(sync)
   }, [sessions])

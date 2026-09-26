@@ -1,10 +1,10 @@
 # IPZSK Desktop Next
 
-`3.0.0-beta.2` 使用官方 DeepSeek Harness 桌面架构，源码基线为 `0.1.5-rc.2 / c291e7961a51`。官方 Electron 壳、独立 Node 后端、分帧流传输和 `dsh-app://` 协议保留；IPZSK 的账号、模型和审核市场通过独立模块接入。
+`3.0.0-beta.3` 使用官方 DeepSeek Harness 桌面架构，源码基线为 `0.1.7-rc.2 / 477b4f420553`。采用官方 Electron 壳、Electron RunAsNode 子进程、带认证的本地 HTTP/WebSocket 和 `dsh-app://` 协议；IPZSK 的账号、模型和审核市场通过独立模块接入。
 
 新版使用单独的 `IPZSK Desktop Next` 数据目录。现有 2.x 会话和已安装插件不自动迁移；后续迁移需按新版会话格式验证。插件继续作为外部依赖独立安装、更新，文档任务数据放在插件包目录之外。
 
-首次启动安装适配后的文档转 Excel `0.3.0-beta.1` 和生图 `1.8.0-beta.1`。首装失败可以继续重试；完成后主动卸载不会再次自动安装。市场阻止降级，旧版审核目录不会覆盖这些新版插件。
+首次启动安装适配后的文档转 Excel `0.3.0-beta.1` 和生图 `1.8.0-beta.2`。首装失败可以继续重试；完成后主动卸载不会再次自动安装。已安装的生图 `1.8.0-beta.1` 会定向升级到 `1.8.0-beta.2`，保持停用状态和用户数据；其他已安装版本保持原样。市场阻止降级，旧版审核目录不会覆盖这些新版插件。
 
 ## 编译与启动
 
@@ -33,12 +33,13 @@ node scripts/package-preview.mjs
 ## 验证
 
 ```sh
-node --test tests/bootstrap-channel.test.mjs
+node --test tests/*.test.mjs
+node scripts/build-plugins.mjs
 node tests/plugin-host-smoke.mjs
 node tests/plugin-host-smoke.mjs --imagegen
 ```
 
-实际 Host 冒烟使用临时目录与合成文件，验证真实 Cordis 加载、ModuleLoader、官方分帧响应、Word 转 Excel 下载及超过 4 MiB 的 PDF 分块上传，同时检查没有 Web 监听端口。测试不调用付费模型。
+实际 Host 冒烟使用临时目录与合成文件，验证真实 Cordis 加载、ModuleLoader、官方认证 HTTP 流式响应、Word 转 Excel 下载及超过 4 MiB 的 PDF 分块上传，同时检查未认证请求被拒绝。测试不调用付费模型。
 
 `--imagegen` 额外加载生图插件，验证账号渠道注入、模拟生成、图片 GET/HEAD 与客户端模块图。生图采用新版聊天附件接口，图片存储同样隔离在插件数据目录中。
 

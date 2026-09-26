@@ -120,7 +120,7 @@ async function hostProcess(t, mode, payload = bootstrap, failure = () => {}) {
   await mkdir(profile)
   await writeFile(join(packageRoot, 'package.json'), '{"type":"module"}\n')
   await writeFile(join(packageRoot, 'lib/index.js'), `import {runBootstrapHost} from ${JSON.stringify(hostFixture)}; await runBootstrapHost(${JSON.stringify(mode)});\n`)
-  const host = new DesktopHostProcess(process.execPath, runtime, profile, undefined, cleanEnvironment, failure, payload)
+  const host = new DesktopHostProcess(process.execPath, runtime, profile, undefined, cleanEnvironment, failure, undefined, undefined, undefined, payload)
   t.after(async () => {
     await host.stop()
     noSecrets(host.stderr)
@@ -143,7 +143,7 @@ async function hostProcess(t, mode, payload = bootstrap, failure = () => {}) {
 test('actual DesktopHostProcess sends bootstrap once over IPC and concurrent start calls share it', { timeout: 10000 }, async t => {
   const { host, report } = await hostProcess(t, 'normal')
   const [first, second] = await bounded(Promise.all([host.start(), host.start()]))
-  assert.equal(first.dshVersion, 'fixture-authenticated')
+  assert.equal(first.url, 'http://127.0.0.1:12345/?token=fixture')
   assert.deepEqual(second, first)
   assert.deepEqual(await report(), { started: true, received: 1, model: 'fixture-qwen', cleanArgv: true, cleanEnv: true })
   await bounded(host.stop())
@@ -248,6 +248,7 @@ test('built Host entry reports rejected credentials and shutdown during handshak
     const failure = fixture.messages.find(message => message.type === 'fatal')
     assert.ok(failure, 'built Host must report a sanitized failure before exiting')
     assert.match(failure.message, /启动数据无效|invalid startup message/u)
-    assert.equal(fixture.output().stderr, '')
+    assert.match(fixture.output().stderr, /启动数据无效|invalid startup message/u)
+    assert.doesNotMatch(fixture.output().stderr, /ERR_IPC_CHANNEL_CLOSED|Unhandled/u)
   }
 })

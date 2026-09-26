@@ -5,7 +5,7 @@
  */
 
 /** Settings namespace this plugin owns (host settings seam + bridge). */
-export const IMAGEGEN_SETTINGS_NAMESPACE = 'dsh-imagegen'
+export const IMAGEGEN_SETTINGS_NAMESPACE = 'imagegen'
 
 /** Same-origin route family carried by the desktop Connection service. */
 export const SETTINGS_API = {

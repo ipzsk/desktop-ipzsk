@@ -10,7 +10,23 @@ import {
   type SnapshotStore,
 } from '@deepseek-ai/dsh-client-store'
 import type { SettingsPathOpView } from '@deepseek-ai/dsh-api-remotes/client'
-import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
+/** Plugin-owned state for its fetch-backed settings form. */
+export interface SettingsScopeSnapshot<T> {
+  status: 'loading' | 'ready' | 'unavailable'
+  value: T | undefined
+  base: unknown
+  user: unknown
+  revision: number | undefined
+  writable: boolean
+  mode: 'host'
+}
+export interface SettingsScope<T> {
+  getSnapshot(): SettingsScopeSnapshot<T>
+  subscribe(listener: () => void): () => void
+  set(field: string, value: unknown): Promise<void>
+  unset(field: string): Promise<void>
+  mutate(ops: readonly SettingsPathOpView[], expectedRevision?: number): Promise<void>
+}
 import { SETTINGS_API, type ChannelConfig } from '../protocol.ts'
 
 /** The fields this plugin's settings card edits. */
@@ -264,7 +280,7 @@ export interface ImageGenScope extends SettingsScope<ImageGenConfig> {
  */
 export function bindImageGenScope(fetchFn: typeof fetch = fetch): ImageGenScope {
   const controller = new BridgeScopeController<ImageGenConfig>(createBridgeApi(fetchFn).settings, {
-    namespace: 'dsh-imagegen',
+    namespace: 'imagegen',
   })
   void controller.load()
   return controller

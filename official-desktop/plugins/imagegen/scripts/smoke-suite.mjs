@@ -69,7 +69,7 @@ await check('A1 host exports the plugin contract', () => {
   assert.equal(typeof host.generateImage, 'function')
 })
 await check('A2 Config schema validates + marks apiKey secret', () => {
-  const resolved = host.Config({ apiUrl: 'https://x/v1', apiKey: 'sk-1' })
+  const resolved = host.Config({ apiUrl: 'https://x/v1', apiKey: 'sk-1' }).get()
   assert.equal(resolved.apiKey, 'sk-1')
   assert.equal(resolved.enabled, true)
   assert.equal(resolved.allowAgentImageGeneration, true)
@@ -79,8 +79,8 @@ await check('A2 Config schema validates + marks apiKey secret', () => {
   assert.equal(host.Config.dict?.apiKey?.meta?.role, 'secret')
 })
 await check('A3 declares the official Connection preview contract', () => {
-  assert.equal(packageJson.version, '1.8.0-beta.1')
-  assert.deepEqual(packageJson.dsh.desktop, { transport: 'connection', minVersion: '0.1.5-rc.2' })
+  assert.equal(packageJson.version, '1.8.0-beta.2')
+  assert.deepEqual(packageJson.dsh.desktop, { transport: 'connection', minVersion: '0.1.7-rc.2' })
   assert.equal(host.checkForUpdate, undefined)
   assert.equal(host.installUpdate, undefined)
 })
@@ -551,10 +551,10 @@ const seam = {
   writable: true,
   describe({ redactSecrets } = {}) {
     const value = { enabled: true, announceToAgent: true, apiUrl: 'http://upstream/v1', apiKey: 'sk-secret' }
-    const user = stored.get('dsh-imagegen')
+    const user = stored.get('imagegen')
     const merged = { ...value, ...user }
     const view = {
-      ns: 'dsh-imagegen',
+      ns: 'imagegen',
       value: redactSecrets ? { ...merged, apiKey: undefined } : merged,
       revision: stored.get('rev') ?? 0,
       ...user !== undefined ? { user: redactSecrets ? { ...user, apiKey: undefined } : user } : {},
@@ -564,13 +564,13 @@ const seam = {
     return [view]
   },
   async mutate(ns, ops, expectedRevision) {
-    assert.equal(String(ns), 'dsh-imagegen')
-    const current = { ...(stored.get('dsh-imagegen') ?? {}) }
+    assert.equal(String(ns), 'imagegen')
+    const current = { ...(stored.get('imagegen') ?? {}) }
     for (const op of ops) {
       if (op.op === 'set') current[op.path[0]] = op.value
       else if (op.op === 'unset') delete current[op.path[0]]
     }
-    stored.set('dsh-imagegen', current)
+    stored.set('imagegen', current)
     stored.set('rev', (stored.get('rev') ?? 0) + 1)
   },
 }
@@ -729,7 +729,7 @@ await check('C1 settings describe serves the redacted namespace', async () => {
   assert.equal(body.value.writable, true)
   assert.equal(body.value.namespaces.length, 1)
   const view = body.value.namespaces[0]
-  assert.equal(view.ns, 'dsh-imagegen')
+  assert.equal(view.ns, 'imagegen')
   assert.equal(view.value.apiUrl, 'http://upstream/v1')
   assert.equal(view.value.apiKey, undefined)
   assert.deepEqual(view.secrets, [{ path: ['apiKey'], set: false }])
@@ -737,14 +737,14 @@ await check('C1 settings describe serves the redacted namespace', async () => {
 
 await check('C2 settings mutate writes + redacts the key', async () => {
   const { body } = await post('/api/dsh-imagegen/settings/mutate', {
-    ns: 'dsh-imagegen',
+    ns: 'imagegen',
     ops: [{ op: 'set', path: ['apiKey'], value: 'sk-new' }],
     expectedRevision: 0,
   })
   assert.equal(body.ok, true)
   assert.equal(body.value.secrets.find(s => s.path[0] === 'apiKey').set, true)
   assert.equal(body.value.value.apiKey, undefined)
-  assert.equal(stored.get('dsh-imagegen').apiKey, 'sk-new')
+  assert.equal(stored.get('imagegen').apiKey, 'sk-new')
 })
 
 await check('C3 generation persists history through the carrier-neutral Fetch registry', async () => {
@@ -1249,7 +1249,7 @@ await check('E1 client apply mounts the sidebar entry and studio (jsdom)', async
           ok: true,
           value: {
             namespaces: [{
-              ns: 'dsh-imagegen',
+              ns: 'imagegen',
           value: configState,
           revision: 0,
           secrets: channelSecrets(),
@@ -1272,7 +1272,7 @@ await check('E1 client apply mounts the sidebar entry and studio (jsdom)', async
         json: async () => ({
           ok: true,
           value: {
-            ns: 'dsh-imagegen',
+            ns: 'imagegen',
             value: configState,
             revision: 1,
             secrets: channelSecrets(),
@@ -1460,7 +1460,7 @@ await check('E1 client apply mounts the sidebar entry and studio (jsdom)', async
   const services = {
     connection: { isLoopback: true },
     sessions: {
-      list: { getSnapshot: () => ({ current: currentSessionId }), subscribe: () => () => {} },
+      list: { getSnapshot: () => ({ byId: { [currentSessionId]: { id: currentSessionId, retainedBy: { mainView: 1 } } } }), subscribe: () => () => {} },
       scope: id => id === currentSessionId ? sessionScope : undefined,
     },
     conversation: {
@@ -1712,8 +1712,8 @@ await check('E1 client apply mounts the sidebar entry and studio (jsdom)', async
     assert.equal(confirmationCalls, 2, 'gallery clear asks for confirmation')
     // The settings card registered into the official plugin-config slot.
     assert.equal(registered.length, 1)
-    assert.equal(registered[0].key, 'dsh-imagegen')
-    assert.equal(registered[0].name, 'settings.plugin.item')
+    assert.equal(registered[0].id, 'dsh-imagegen')
+    assert.equal(registered[0].name, 'settings.plugins.tab')
 
     // The asset library must not inherit the normal generation inspiration wall.
     assert.equal(jsdomDocument.querySelector('[aria-label="灵感案例"]'), null, 'asset library hides inspiration wall')

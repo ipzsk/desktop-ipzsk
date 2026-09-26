@@ -1,10 +1,11 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import { installBundledPreviewPlugins, parseBundledPreviewManifest, prepareBundledPreviewProfile,
   IPZSK_PREVIEW_SEED_STATE, type BundledPreviewManifest, type BundledPreviewPlugin } from '../src/ipzsk-bundled-plugin.ts'
-import { DesktopProjectManager, type DesktopProjectHooks } from '../src/project-manager.ts'
+import { DesktopProjectManager } from '../src/project-manager.ts'
+import { IpzskPluginInstaller, type DesktopProjectHooks } from '../src/ipzsk-plugin-installer.ts'
 import { resolveDesktopPaths } from '../src/paths.ts'
 import { runtimeFixture } from './runtime-fixture.ts'
 import { marketFixture } from './ipzsk-market-fixture.ts'
@@ -15,9 +16,9 @@ function temporaryRoot(): string {
   roots.push(root)
   return root
 }
-function bundled(root: string, fields: Record<string, unknown> = {}, includeImage = false) {
+function bundled(root: string, fields: Record<string, unknown> = {}, includeImage = false, imageVersion = '1.8.0-beta.2') {
   const doc = marketFixture({ name: 'dsh-doc-to-excel', ...fields })
-  const image = marketFixture({ name: '@dickpy/dsh-imagegen', version: '1.8.0-beta.1' })
+  const image = marketFixture({ name: '@dickpy/dsh-imagegen', version: imageVersion })
   const plugin: BundledPreviewPlugin = { packageName: 'dsh-doc-to-excel', version: doc.plugin.version,
     file: 'dsh-doc-to-excel.tgz', sha256: doc.plugin.sha256, sizeBytes: doc.bytes.length }
   const imagePlugin: BundledPreviewPlugin = { packageName: '@dickpy/dsh-imagegen', version: image.plugin.version,
@@ -36,11 +37,11 @@ function hooks(): DesktopProjectHooks {
 function seedFixture() {
   const root = temporaryRoot()
   const resources = bundled(root, {}, true).resources
-  const paths = resolveDesktopPaths(join(root, '.dsh'))
+  const paths = { ...resolveDesktopPaths(join(root, '.dsh')), root: join(root, '.dsh') }
   const installed = new Map<string, { name: string; version: string; enabled: boolean }>()
   const manager = {
     paths,
-    applyRelease: vi.fn(async () => { mkdirSync(paths.profile, { recursive: true }); writeFileSync(join(paths.profile, 'package.json'), '{}'); return true }),
+    applyRelease: vi.fn(async () => { mkdirSync(paths.profile, { recursive: true }); writeFileSync(join(paths.profile, 'package.json'), '{}') }),
     listPlugins: () => [...installed.values()],
     installBundledPreview: vi.fn(async (plugin: BundledPreviewPlugin) => {
       installed.set(plugin.packageName, { name: plugin.packageName, version: plugin.version, enabled: true }); return true
@@ -69,8 +70,8 @@ it('installs both bundled plugins with real pnpm as external dependencies and pr
   const root = temporaryRoot()
   const dsh = join(root, 'dsh')
   runtimeFixture(dsh)
-  const manager = new DesktopProjectManager(resolveDesktopPaths(join(root, '.dsh')), {
-    node: process.execPath, pnpm: join(import.meta.dirname, '../node_modules/pnpm/bin/pnpm.mjs'), dsh,
+  const manager = new IpzskPluginInstaller(new DesktopProjectManager(resolveDesktopPaths(join(root, '.dsh')), { dsh }), {
+    node: process.execPath, nodeBin: dirname(process.execPath), pnpm: join(import.meta.dirname, '../node_modules/pnpm/bin/pnpm.mjs'), dsh,
   })
   await manager.applyRelease()
   const { resources, plugin, bytes } = bundled(root, {}, true)
@@ -80,31 +81,31 @@ it('installs both bundled plugins with real pnpm as external dependencies and pr
   writeFileSync(data, 'user document job')
   expect(await installBundledPreviewPlugins(manager, resources, lifecycle)).toEqual(['dsh-doc-to-excel', '@dickpy/dsh-imagegen'])
   expect(manager.listPlugins()).toEqual([
-    { name: '@dickpy/dsh-imagegen', version: '1.8.0-beta.1', enabled: true },
+    { name: '@dickpy/dsh-imagegen', version: '1.8.0-beta.2', enabled: true },
     { name: 'dsh-doc-to-excel', version: plugin.version, enabled: true },
   ])
   expect(lifecycle.beforeChange).toHaveBeenCalledTimes(2)
   expect(lifecycle.afterChange).toHaveBeenCalledTimes(2)
-  const state = JSON.parse(readFileSync(join(manager.paths.profile, 'desktop-runtime-state.json'), 'utf8'))
-  expect(state.links.some((link: { name: string }) => ['dsh-doc-to-excel', '@dickpy/dsh-imagegen'].includes(link.name))).toBe(false)
   expect(JSON.parse(readFileSync(join(manager.paths.profile, 'package.json'), 'utf8')).dependencies['dsh-doc-to-excel'])
     .toBe(`file:.ipzsk-packages/${plugin.sha256}.tgz`)
-  await expect(manager.applyRelease()).resolves.toBe(false)
-  await manager.mutate({ type: 'plugin-toggle', name: 'dsh-doc-to-excel', enabled: false }, hooks())
+  await expect(manager.applyRelease()).resolves.toBeUndefined()
+  const manifestPath = join(manager.paths.profile, 'package.json')
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+  manifest.dsh.profile.bundles = manifest.dsh.profile.bundles.filter((name: string) => name !== 'dsh-doc-to-excel')
+  writeFileSync(manifestPath, JSON.stringify(manifest))
   const untouched = hooks()
   expect(await installBundledPreviewPlugins(manager, resources, untouched)).toEqual([])
-  expect(await manager.installBundledPreview({ ...plugin, version: '0.2.0' }, bytes, untouched)).toBe(false)
-  expect(await manager.installBundledPreview({ ...plugin, version: '9.0.0' }, bytes, untouched)).toBe(false)
+  expect(await manager.installBundledPreview(plugin, bytes, untouched)).toBe(false)
   expect(manager.listPlugins().find(item => item.name === 'dsh-doc-to-excel')).toEqual({ name: 'dsh-doc-to-excel', version: plugin.version, enabled: false })
   expect(untouched.beforeChange).not.toHaveBeenCalled()
   expect(untouched.afterChange).not.toHaveBeenCalled()
   expect(readFileSync(data, 'utf8')).toBe('user document job')
 }, 30_000)
 
-it('rejects tampered bytes, old HTTP transport and a mismatched package before any profile mutation', async () => {
+it('rejects tampered bytes, incompatible requirements and a mismatched package before any profile mutation', async () => {
   const manager = { listPlugins: () => [], installBundledPreview: vi.fn(async () => true) }
-  for (const fields of [{ name: 'unrelated-plugin' }, { peerDependencies: { '@deepseek-ai/dsh-host-webserver': '*' } },
-    { dsh: { bundle: { patch: './cordis.patch.yml' }, desktop: { transport: 'connection', minVersion: '0.1.6' } } }]) {
+  for (const fields of [{ name: 'unrelated-plugin' },
+    { dsh: { bundle: { patch: './cordis.patch.yml' }, desktop: { transport: 'connection', minVersion: '0.2.0' } } }]) {
     const { resources } = bundled(temporaryRoot(), fields)
     await expect(installBundledPreviewPlugins(manager, resources, hooks())).rejects.toThrow()
   }
@@ -173,3 +174,26 @@ it('existing profiles are marked done without seeding, and malformed state is ne
   writeFileSync(join(paths.root, IPZSK_PREVIEW_SEED_STATE), JSON.stringify({ schemaVersion: 1, status: ['pending'] }))
   await expect(prepareBundledPreviewProfile(manager, '/unused/resources')).rejects.toThrow('首次安装记录')
 })
+
+it('upgrades only the incompatible bundled image plugin, retaining disabled state and user data', async () => {
+  const root = temporaryRoot(), dsh = join(root, 'dsh')
+  runtimeFixture(dsh)
+  const manager = new IpzskPluginInstaller(new DesktopProjectManager(resolveDesktopPaths(join(root, '.dsh')), { dsh }), {
+    dsh, node: process.execPath, nodeBin: dirname(process.execPath), pnpm: join(import.meta.dirname, '../node_modules/pnpm/bin/pnpm.mjs'),
+  })
+  const { resources } = bundled(root, {}, true, '1.8.0-beta.1')
+  await prepareBundledPreviewProfile(manager, resources)
+  const manifestPath = join(manager.paths.profile, 'package.json')
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+  manifest.dsh.profile.bundles = manifest.dsh.profile.bundles.filter((name: string) => name !== '@dickpy/dsh-imagegen')
+  writeFileSync(manifestPath, JSON.stringify(manifest))
+  const data = join(manager.paths.root, 'user-job.txt')
+  writeFileSync(data, 'keep')
+  bundled(root, {}, true)
+  await prepareBundledPreviewProfile(manager, resources)
+  expect(manager.listPlugins().find(plugin => plugin.name === '@dickpy/dsh-imagegen')).toEqual({
+    name: '@dickpy/dsh-imagegen', version: '1.8.0-beta.2', enabled: false,
+  })
+  expect(readFileSync(data, 'utf8')).toBe('keep')
+  await prepareBundledPreviewProfile(manager, '/unused-resources')
+}, 30_000)

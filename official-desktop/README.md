@@ -2,13 +2,13 @@
 
 IPZSK Desktop Next is the official DeepSeek Harness Electron architecture with IPZSK account, model and plugin integrations. This directory owns the downstream overlay; the existing 2.x application and its pinned submodule remain separate.
 
-The current preview is `3.0.0-beta.2`, based on upstream `0.1.5-rc.2` at `c291e7961a515f6d7af9304e7fd1d257929aef26`. The complete downstream dsh package family, private Host and Electron shell share the product version. Vendored libraries retain their upstream versions.
+The current preview is `3.0.0-beta.3`, based on upstream `0.1.7-rc.2` at `477b4f420553e8a52c2fbccc464d7561b239c443`. The complete downstream dsh package family, private Host and Electron shell share the product version. Vendored libraries retain their upstream versions.
 
 ## Runtime
 
-- Electron launches the bundled upstream Node runtime as a separate process. Fetch traffic uses the official framed byte pipes and `dsh-app://`; the packaged application does not create a local Web listener.
+- Electron starts its own Node-mode child process. The official Web Host listens on an OS-assigned loopback port with authenticated HTTP/WebSocket; the packaged renderer uses `dsh-app://app/`. The runtime is packaged inside ASAR, with native libraries and Office dependencies unpacked by the official rules.
 - The account window owns login, encrypted session storage, balance, usage and voucher redemption. A one-time private IPC exchange supplies validated model credentials to the Host. Credentials do not enter renderer state, process arguments, environment variables or configuration files.
-- Electron owns profile mutations. The IPZSK market re-fetches approved releases and checks archive identity, size, SHA-256 and desktop transport compatibility before using the official package lock and bundled pnpm.
+- The official Web plugin manager and the IPZSK market share profile package operations and their file lock. The IPZSK market re-fetches approved releases and checks archive identity, size, SHA-256 and desktop transport compatibility before using the official package lock and bundled pnpm.
 - Plugins remain independently installed profile dependencies. They are excluded from the immutable shared Host package set.
 - The preview uses `IPZSK Desktop Next` application data, separately from IPZSK Desktop 2.x. It does not migrate or rewrite existing sessions. Plugin job data lives outside the package profile so package operations and profile recovery do not replace it.
 
@@ -37,11 +37,12 @@ Production builds require the product's signing and notarization identity and a 
 ## Validation
 
 ```sh
-node --test tests/bootstrap-channel.test.mjs
+node --test tests/*.test.mjs
+node scripts/build-plugins.mjs
 node tests/plugin-host-smoke.mjs
 ```
 
-The Host smoke uses a temporary profile, synthetic Word/PDF files, the real Cordis loader, ModuleLoader and official response frame decoder. It checks Word-to-Excel download, PDF upload across a 4 MiB chunk boundary and absent Web listeners. It makes no paid model requests.
+The Host smoke uses a temporary profile, synthetic Word/PDF files, the real Cordis loader, ModuleLoader and authenticated loopback Web Host. It checks Word-to-Excel download, PDF upload across a 4 MiB chunk boundary and rejection of unauthenticated API requests. It makes no paid model requests.
 
 Account, model and market behavior tests are copied to `.build/upstream/apps/desktop*/tests` with the overlay and run through the official Vitest setup. The document plugin also owns its Node and Python regression suites.
 

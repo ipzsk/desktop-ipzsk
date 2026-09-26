@@ -1,106 +1,246 @@
---- a/apps/desktop/src/main.ts
-+++ b/apps/desktop/src/main.ts
-@@ -1,6 +1,10 @@
- /** Electron shell: desktop project ownership, custom protocol, windows, and lifecycle. */
+--- a/apps/cli/src/profile-boot.ts
++++ b/apps/cli/src/profile-boot.ts
+@@ -232,6 +232,8 @@
+   args: readonly string[]
+   /** Application-owned package runtime, scoped to plugin package operations. */
+   packageManager?: ProfileContext['packageManager']
++  /** Install desktop-owned services before any plugin mounts. */
++  beforeBoot?: (ctx: Context) => void
+ }
  
- import { readFile, writeFile } from 'node:fs/promises'
-+import { mkdirSync } from 'node:fs'
-+import { IpzskAccountController } from './ipzsk-account.ts'
-+import { createIpzskMarket } from './ipzsk-market.ts'
-+import { prepareBundledPreviewProfile } from './ipzsk-bundled-plugin.ts'
- import { extname, join, normalize, resolve, sep } from 'node:path'
- import { fileURLToPath } from 'node:url'
- import {
-@@ -22,6 +26,12 @@
- import { DesktopUpdateCoordinator } from './update-coordinator.ts'
- import { desktopErrorState } from './startup-error.ts'
- import { startupFailureDocument } from './startup-document.ts'
-+
-+app.setName('IPZSK Desktop Next')
-+const ipzskUserData = join(app.getPath('appData'), 'IPZSK Desktop Next')
-+mkdirSync(ipzskUserData, { recursive: true, mode: 0o700 })
-+app.setPath('userData', ipzskUserData)
-+process.env.DSH_HOME = join(ipzskUserData, 'dsh-home')
- 
- const SCHEME = 'dsh-app'
- let focusPrimaryWindow = (): void => {}
-@@ -204,7 +214,7 @@
-     if (development === undefined) manager.assertProfileRuntime(activeProject)
-     const hostInspectPort = developmentHostInspectPort(development !== undefined)
-     const host = new DesktopHostProcess(resources.node, development ?? resources.dsh, activeProject,
--      hostInspectPort, process.env, onFailure)
-+      hostInspectPort, process.env, onFailure, account.bootstrap())
-     return {
-       start: () => host.start(),
-       stop: () => host.stop(),
-@@ -223,6 +233,12 @@
-     }
-     return state
+ /**
+@@ -296,6 +298,7 @@
+     const ctx = await boot(NAME, rootConfig, readProfilePatches(NAME, profileContext, composed.profile), async (hostCtx) => {
+       app.current = hostCtx
+       hostCtx.provide('profileContext', profileContext)
++      options.beforeBoot?.(hostCtx)
+       // Before any config-tree entry mounts, so plugins resolve all launch-time
+       // environment values from the same immutable launch snapshot.
+       hostCtx.provide(DSH_LAUNCH_ENVIRONMENT_KEY, options.environment)
+--- a/apps/desktop-host/package.json
++++ b/apps/desktop-host/package.json
+@@ -24,5 +24,10 @@
+     "@deepseek-ai/dsh-skill-office": "workspace:*",
+     "@deepseek-ai/dsh-deepseek-account": "workspace:*",
+     "@deepseek-ai/dsh-workspace": "workspace:*"
++  },
++  "devDependencies": {
++    "@deepseek-ai/dsh-settings": "workspace:*",
++    "@deepseek-ai/dsh-launch-environment": "workspace:*",
++    "@deepseek-ai/cordis-plugin-include": "workspace:~"
    }
-+
-+  const account = new IpzskAccountController({
-+    userDataDir: app.getPath('userData'),
-+    onSignOut: async () => { await backend.stop(); app.relaunch(); app.quit() },
-+  })
-+  account.init()
+ }
+--- a/apps/desktop-host/src/index.ts
++++ b/apps/desktop-host/src/index.ts
+@@ -1,6 +1,8 @@
+ /** Launch the Desktop profile through the Web application and report its URL to Electron. */
  
-   const hooks: DesktopProjectHooks = {
-     beforeChange: () => backend.stop(),
-@@ -259,9 +275,10 @@
-     startup ??= (async () => {
-       pageError = undefined
-       await navigateMain(startupUrl)
-+      if (!await account.ensureSignedIn()) { app.quit(); return }
-       await backend.start(async () => {
-         if (development === undefined) {
--          await manager.applyRelease()
-+          await prepareBundledPreviewProfile(manager, process.resourcesPath)
-         }
-       })
-       if (backend.host !== undefined) await navigateMain(applicationUrl)
-@@ -434,9 +451,19 @@
-     void pluginWindow.loadURL(`${SCHEME}://shell/plugin-manager.html`)
-   }
+ import { delimiter, join } from 'node:path'
++import { receiveIpzskBootstrap } from './ipzsk-bootstrap-channel.ts'
++import { parseIpzskHostBootstrap, withIpzskEnvironment, ipzskPluginPatches, installIpzskPluginConfig, applyIpzskModelSettings } from './ipzsk-bootstrap.ts'
+ import { inspect } from 'node:util'
+ import { loadLayeredEnv, loadProfileDirectory, reportSkippedBundles } from '@deepseek-ai/dsh-app-boot'
+ import { runProfile } from '@deepseek-ai/dsh/profile-boot'
+@@ -16,6 +18,7 @@
+ import { installOfficeEngineResolution } from './office-engine.ts'
  
-+  const market = createIpzskMarket({
-+    manager, hooks, catalog: () => account.pluginMarket(), packaged: development === undefined,
-+    beforeInstall: async () => { await startup?.catch(() => undefined); pageError = undefined; await navigateMain(startupUrl) },
-+    afterInstall: () => navigateMain(applicationUrl),
-+    onInstallError: showStartupError,
-+  })
-+
-   Menu.setApplicationMenu(Menu.buildFromTemplate([{
-     label: process.platform === 'darwin' ? app.name : messages.application,
-     submenu: [
-+      { label: 'IPZSK 账户与余额', click: () => { void account.openAccount() } },
-+      { label: 'IPZSK 插件市场', click: () => { market.open() } },
-+      { type: 'separator' },
-       {
-         label: development === undefined ? messages.pluginsMenu : messages.pluginsMenuPackagedOnly,
-         accelerator: 'CmdOrCtrl+,',
-@@ -487,6 +514,8 @@
-     if (shellInstallerOwnsQuit || quitting) return
-     event.preventDefault()
-     quitting = true
-+    market.dispose()
-+    account.dispose()
-     void backend.close().catch((error: unknown) => { console.error(error) }).finally(() => { app.quit() })
+ async function main(): Promise<void> {
++  const bootstrap = parseIpzskHostBootstrap(await receiveIpzskBootstrap())
+   const runtimeDir = process.argv[2] as string
+   const projectDir = process.argv[3] as string
+   installOfficeEngineResolution(runtimeDir)
+@@ -23,11 +26,16 @@
+   const profile = loadProfileDirectory('dsh', projectDir, installAnchor)
+   reportSkippedBundles('dsh', profile)
+   const application = runProfile({
+-    environment: loadLayeredEnv('dsh'),
++    environment: withIpzskEnvironment(loadLayeredEnv('dsh'), bootstrap),
++    beforeBoot: (ctx) => {
++      ctx.provide('ipzskDesktop', { dataDir: join(resolveDshHome(), 'plugin-data') })
++      installIpzskPluginConfig(ctx, ipzskPluginPatches(bootstrap, profile.layers,
++        [...profile.layers.flatMap(layer => layer.patches), ...profile.patches]))
++    },
+     profile: 'desktop',
+     resolvedProfile: { profile, installAnchor },
+     patchFiles: [],
+-    args: ['--no-open', '--port', '19387'],
++    args: ['--no-open', '--port', '0'],
+     ...(process.argv[5] === undefined ? {} : {
+       packageManager: {
+         command: process.execPath,
+@@ -41,6 +49,7 @@
+     }),
    })
+   let stopping: Promise<void> | undefined
++  const shouldStop = (): boolean => stopping !== undefined || !process.connected
+   const control: {
+     updateTasks?: ReturnType<typeof installDesktopUpdateTaskControl>
+     quitInspection?: ReturnType<typeof installDesktopQuitInspection>
+@@ -90,6 +99,8 @@
+   })
+   process.once('disconnect', () => { void stop() })
+   const { ctx } = await application
++  if (shouldStop()) { await stop(); return }
++  await applyIpzskModelSettings(ctx, bootstrap)
+   control.updateTasks = installDesktopUpdateTaskControl(ctx)
+   control.quitInspection = installDesktopQuitInspection(ctx)
+   await ctx.plugin(desktopOffice, {
+--- a/apps/desktop-host/tsconfig.json
++++ b/apps/desktop-host/tsconfig.json
+@@ -8,14 +8,30 @@
+     "src"
+   ],
+   "references": [
+-    { "path": "../../vendor/cordis" },
+-    { "path": "../../packages/core/agent" },
+-    { "path": "../../packages/jobs/jobs" },
+-    { "path": "../../packages/schedule/schedule" },
+-    { "path": "../../packages/workspace/workspace" },
+-    { "path": "../../packages/skill/skill-office" },
+-    { "path": "../../packages/util/home-paths" },
+-    { "path": "../../packages/skill/tool-workspace-dependencies" },
++    {
++      "path": "../../vendor/cordis"
++    },
++    {
++      "path": "../../packages/core/agent"
++    },
++    {
++      "path": "../../packages/jobs/jobs"
++    },
++    {
++      "path": "../../packages/schedule/schedule"
++    },
++    {
++      "path": "../../packages/workspace/workspace"
++    },
++    {
++      "path": "../../packages/skill/skill-office"
++    },
++    {
++      "path": "../../packages/util/home-paths"
++    },
++    {
++      "path": "../../packages/skill/tool-workspace-dependencies"
++    },
+     {
+       "path": "../cli"
+     },
+@@ -30,6 +46,15 @@
+     },
+     {
+       "path": "../../packages/credentials/deepseek-account"
++    },
++    {
++      "path": "../../packages/settings/settings"
++    },
++    {
++      "path": "../../packages/util/launch-environment"
++    },
++    {
++      "path": "../../vendor/include"
+     }
+   ]
+ }
+--- a/apps/desktop/package.json
++++ b/apps/desktop/package.json
+@@ -75,6 +75,7 @@
+     "vite": "^6.0.0",
+     "@deepseek-ai/dsh-client-ui-theme": "workspace:*",
+     "@deepseek-ai/dsh-client-shortcuts": "workspace:*",
+-    "@deepseek-ai/dsh-atomic-write": "workspace:*"
++    "@deepseek-ai/dsh-atomic-write": "workspace:*",
++    "@deepseek-ai/dsh-plugin-manager": "workspace:*"
+   }
+ }
+--- a/apps/desktop/scripts/desktop-auto-update-environment.mjs
++++ b/apps/desktop/scripts/desktop-auto-update-environment.mjs
+@@ -14,8 +14,8 @@
+     secretKeyEnvName: 'DOWNLOAD_TEST_COS_SECRET_KEY',
+   },
+   production: {
+-    originEnvName: undefined,
+-    fixedOrigin: 'https://download.deepseek.com',
++    originEnvName: 'IPZSK_DESKTOP_UPDATE_ORIGIN',
++    fixedOrigin: undefined,
+     bucketEnvName: 'DOWNLOAD_PROD_COS_BUCKET',
+     secretIdEnvName: 'DOWNLOAD_PROD_COS_SECRET_ID',
+     secretKeyEnvName: 'DOWNLOAD_PROD_COS_SECRET_KEY',
+--- a/apps/desktop/scripts/electron-builder-config.mjs
++++ b/apps/desktop/scripts/electron-builder-config.mjs
+@@ -51,7 +51,8 @@
+   preparedRuntimeVersion = undefined,
+ ) {
+   const appId = resolveDesktopAppId(env)
+-  const policy = resolveDesktopPolicyEnvironment(env)
++  const localDistribution = env.IPZSK_DESKTOP_LOCAL_DISTRIBUTION === '1'
++  const policy = localDistribution ? undefined : resolveDesktopPolicyEnvironment(env)
+   const targetPlatform = env.DSH_DESKTOP_TARGET_PLATFORM
+   const resolvedPlatform = targetPlatform ?? hostPlatform
+   const resolvedArch = env.DSH_DESKTOP_TARGET_ARCH ?? hostArch
+@@ -90,7 +91,7 @@
+   if (windowsSigner !== undefined) {
+     installWindowsNsisBootstrapSigner({ sign: windowsSigner })
+   }
+-  const update = unsigned ? undefined : resolveDesktopAutoUpdateConfig(env, resolvedPlatform, resolvedArch)
++  const update = unsigned || localDistribution ? undefined : resolveDesktopAutoUpdateConfig(env, resolvedPlatform, resolvedArch)
+   if (preparedRuntime !== undefined) buildPaths.dsh = preparedRuntime
+   // electron-builder merges extraMetadata into the packaged manifest, so a build version here reaches
+   // the artifact names, the update feed, and the installed app.getVersion() the updater compares against.
+@@ -106,9 +107,9 @@
+       ...buildVersion === productVersion ? {} : { version: buildVersion },
+       ...packaged === undefined ? {} : { dshBuildCommit: packaged.commit, dshBuildDirty: packaged.dirty },
+     },
+-    productName: 'DeepSeek Harness',
++    productName: 'IPZSK Desktop Next',
+     // Unsigned builds carry their own suffix so a shared file can never pass for a release artifact.
+-    artifactName: `deepseek-harness-\${version}-\${os}-\${arch}${unsigned ? '-unsigned' : ''}.\${ext}`,
++    artifactName: `IPZSK.Desktop.Next-\${version}-\${os}-\${arch}${unsigned ? '-unsigned' : ''}.\${ext}`,
+     directories: { output: unsigned ? buildPaths.unsignedArtifacts : buildPaths.artifacts },
+     asar: true,
+     electronDist: buildPaths.electron,
+--- a/apps/desktop/scripts/prepare-package-set.ts
++++ b/apps/desktop/scripts/prepare-package-set.ts
+@@ -28,7 +28,9 @@
+ import { resolveDesktopTargetBuildPaths } from './desktop-build-paths.mjs'
  
+ const DSH_PACKAGE = '@deepseek-ai/dsh'
+-const ROOT_PACKAGES = [DSH_PACKAGE, DESKTOP_HOST_PACKAGE] as const
++const ROOT_PACKAGES = [DSH_PACKAGE, DESKTOP_HOST_PACKAGE,
++  '@deepseek-ai/dsh-client-store', '@deepseek-ai/dsh-client-ui-primitives', '@deepseek-ai/dsh-client-ui-slots',
++] as const
+ const APP_ROOT = resolve(import.meta.dirname, '..')
+ const REPOSITORY_ROOT = resolve(APP_ROOT, '..', '..')
+ 
+--- a/apps/desktop/scripts/smoke-runtime.ts
++++ b/apps/desktop/scripts/smoke-runtime.ts
+@@ -27,7 +27,11 @@
+   const profile = join(home, 'profiles', 'desktop')
+   const host = new DesktopHostProcess(node, root, profile, undefined, { ...environment, DSH_HOME: home },
+     undefined, join(resourcesRuntime, 'primary-runtime'),
+-    { pnpm: join(resourcesRuntime, 'pnpm', 'bin', 'pnpm.cjs'), nodeBin: join(resourcesRuntime, 'bin') })
++    { pnpm: join(resourcesRuntime, 'pnpm', 'bin', 'pnpm.cjs'), nodeBin: join(resourcesRuntime, 'bin') }, undefined, {
++      version: 1, token: 'ipz_' + 's'.repeat(43), default_model: 'packaging-fixture',
++      models: [{ id: 'packaging-fixture', name: 'Local test only', contextWindow: 4096, maxTokens: 256 }],
++      image_models: [], plugin_configs: [],
++    })
+   let timer: ReturnType<typeof setTimeout> | undefined
+   try {
+     createPluginProfile(profile)
 --- a/apps/desktop/src/host-process.ts
 +++ b/apps/desktop/src/host-process.ts
-@@ -100,6 +100,7 @@
-     private readonly inspectPort?: number,
-     private readonly environment: NodeJS.ProcessEnv = process.env,
-     private readonly onFailure?: (error: Error) => void,
+@@ -177,6 +177,7 @@
+     private readonly packageManager?: { readonly pnpm: string; readonly nodeBin: string },
+ 
+     private readonly onPlatformSession?: (session: PlatformSession | null) => void,
 +    private readonly ipzskBootstrap?: unknown,
    ) {}
  
-   /** Start the child once and resolve only after its complete composition is active. */
-@@ -142,7 +143,20 @@
-     })
-     requestPipe.once('error', (error) => { this.fail(error) })
-     responsePipe.once('error', (error) => { this.fail(error) })
+   /**
+@@ -203,7 +204,20 @@
+     child.stderr?.setEncoding('utf8')
+     child.stderr?.on('data', (chunk: string) => { this.stderr = (this.stderr + chunk).slice(-MAX_HOST_DIAGNOSTIC_CHARS) })
+     child.stdout?.pipe(process.stdout)
 +    let bootstrapSent = false
      child.on('message', (message: unknown) => {
 +      if (typeof message === 'object' && message !== null && 'type' in message && message.type === 'ipzsk-bootstrap-ready') {
@@ -118,158 +258,221 @@
        if (!isDesktopHostEvent(message)) {
          this.fail(new Error('dsh desktop host sent an invalid IPC event'))
          child.kill('SIGTERM')
---- a/apps/desktop-host/src/index.ts
-+++ b/apps/desktop-host/src/index.ts
-@@ -5,6 +5,8 @@
-  */
+--- a/apps/desktop/src/main.ts
++++ b/apps/desktop/src/main.ts
+@@ -2,6 +2,11 @@
+ /** Electron shell: desktop project ownership, custom protocol, windows, and lifecycle. */
  
- import { createRequire } from 'node:module'
-+import { receiveIpzskBootstrap } from './ipzsk-bootstrap-channel.ts'
-+import { parseIpzskHostBootstrap, withIpzskEnvironment, ipzskModelPatches, ipzskPluginPatches, applyIpzskModelSettings, type IpzskHostBootstrap } from './ipzsk-bootstrap.ts'
- import { closeSync, createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
- import { once } from 'node:events'
- import { readFile } from 'node:fs/promises'
-@@ -149,7 +151,7 @@
-   return path === root || path.startsWith(root + sep)
- }
+ import { readFile, writeFile } from 'node:fs/promises'
++import { mkdirSync } from 'node:fs'
++import { IpzskAccountController } from './ipzsk-account.ts'
++import { createIpzskMarket } from './ipzsk-market.ts'
++import { IpzskPluginInstaller } from './ipzsk-plugin-installer.ts'
++import { prepareBundledPreviewProfile } from './ipzsk-bundled-plugin.ts'
+ import { join } from 'node:path'
+ import { fileURLToPath } from 'node:url'
+ import {
+@@ -36,7 +41,7 @@
+ import { DesktopFatalRecovery } from './fatal-recovery.ts'
+ import { pruneCrashReports, RendererConsoleTail, writeCrashReport, type CrashReportSource } from './crash-report.ts'
+ import { openWelcomeWindow } from './welcome-window.ts'
+-import { WELCOME_IPC, needsWelcome, type WelcomeNotice } from './welcome-api.ts'
++import { WELCOME_IPC, type WelcomeNotice } from './welcome-api.ts'
+ import { connectDesktopWelcome, type DesktopWelcomeBackend } from './welcome-backend.ts'
+ import { DesktopUpdateJournal } from './update-journal.ts'
+ import { DesktopUpdatePreparationError } from './update-error.ts'
+@@ -55,6 +60,12 @@
+ import { DesktopQuitConfirmation } from './quit-confirmation.ts'
+ import { DesktopTray } from './tray.ts'
+ import { DesktopBackgroundNotice } from './background-notice.ts'
++
++app.setName('IPZSK Desktop Next')
++const ipzskUserData = join(app.getPath('appData'), 'IPZSK Desktop Next')
++mkdirSync(ipzskUserData, { recursive: true, mode: 0o700 })
++app.setPath('userData', ipzskUserData)
++process.env.DSH_HOME = join(ipzskUserData, 'dsh-home')
  
--function desktopPatches(runtimeDir: string, projectDir: string, allowLinkedPackages: boolean): PatchOptions[] {
-+function desktopPatches(runtimeDir: string, projectDir: string, allowLinkedPackages: boolean, bootstrap?: IpzskHostBootstrap): PatchOptions[] {
-   const dshRoot = dirname(packageManifestPath(runtimeDir, '@deepseek-ai/dsh'))
-   const profile = loadProfileDirectory('dsh desktop', projectDir, join(dshRoot, 'package.json'))
-   for (const layer of profile.layers) {
-@@ -173,7 +175,8 @@
+ let focusPrimaryWindow = (): void => {}
+ let stopForRecovery = async (): Promise<void> => {}
+@@ -380,7 +391,6 @@
+   let openedAttempt: string | undefined
+   let returnedAttempt: string | undefined
+   let pendingWelcomeNotice: WelcomeNotice | undefined
+-  let previousAccountStatus: string | undefined
+   const assertProductSender = (event: IpcMainInvokeEvent): void => {
+     assertDesktopSender(event, ['app'])
+     if (mainWindow === undefined || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents
+@@ -405,12 +415,18 @@
+   }
+   const platformView = new DesktopPlatformView(join(app.getAppPath(), 'lib', 'preload-platform-account.cjs'),
+     () => locale.id === 'zh-CN' ? 'zh_CN' : 'en_US', process.platform === 'win32' ? 'win32' : 'darwin')
++  const account = new IpzskAccountController({
++    userDataDir: app.getPath('userData'),
++    onSignOut: async () => { await backend.stop(); app.relaunch(); quitWithoutConfirmation() },
++  })
++  account.init()
++  const installer = new IpzskPluginInstaller(manager, resources)
+   const backend = new DesktopBackendController((onFailure) => {
+     const hostInspectPort = developmentHostInspectPort(development)
+     const host = new DesktopHostProcess(resources.node, resources.dsh, activeProject,
+       hostInspectPort, process.env, onFailure,
+       primaryRuntime,
+-      resources, (next) => { platformView.setSession(next) })
++      resources, (next) => { platformView.setSession(next) }, account.bootstrap())
+     return {
+       start: async () => {
+         const ready = await host.start()
+@@ -434,28 +450,10 @@
+             focusPrimaryWindow()
+           }
+           if (state.status === 'credential-stored' && attempt?.phase === 'succeeded' && welcomeWindow !== undefined) void enterWorkspace({ activate: false }).catch(() => undefined)
+-          if (previousAccountStatus === 'credential-stored' && state.status === 'signed-out') {
+-            void readWelcomeState().then(async (value) => {
+-              if (needsWelcome(value) && !quitting) {
+-                enteredWorkspace = false
+-                await showWelcome()
+-                if (welcomeWindow !== undefined && !welcomeWindow.isDestroyed()) welcomeWindow.webContents.send(WELCOME_IPC.state, state)
+-              }
+-              return undefined
+-            }).catch(() => undefined)
+-          }
+-          previousAccountStatus = state.status
+         }, () => {
+           // The stream reconnects; a transport failure does not change account state.
+         }, () => {
+-          void readWelcomeState().then(async (value) => {
+-            if (!needsWelcome(value) || quitting) return
+-            pendingWelcomeNotice = 'session-expired'
+-            enteredWorkspace = false
+-            await showWelcome()
+-            const state = await accountBackend.state()
+-            if (welcomeWindow !== undefined && !welcomeWindow.isDestroyed()) welcomeWindow.webContents.send(WELCOME_IPC.state, state)
+-          }).catch(() => undefined)
++          // IPZSK session expiry is handled by the account controller.
+         })
        },
-     }])
+       stop: async () => {
+@@ -529,8 +527,10 @@
+   const reconcileBackend = (): Promise<void> => {
+     startup ??= (async () => {
+       await navigateMain(applicationUrl)
++      if (!await account.ensureSignedIn()) { quitWithoutConfirmation(); return }
+       await backend.start(async () => {
+-        await manager.applyRelease()
++        if (development) await manager.applyRelease()
++        else await prepareBundledPreviewProfile(installer, process.resourcesPath)
+       })
+       if (backend.host !== undefined) await openInitialWindow()
+       if (backend.host !== undefined) updateJournal?.action('workspace-ready')
+@@ -874,7 +874,7 @@
+   const applicationIconPath = development ? join(app.getAppPath(), 'resources', 'icon-windows.png')
+     : join(process.resourcesPath, 'icon.png')
+   app.setAboutPanelOptions({
+-    applicationName: 'DeepSeek Harness',
++    applicationName: 'IPZSK Desktop Next',
+     applicationVersion: app.getVersion(),
+     // The release has no separate build number; omit Electron's bundle version.
+     version: '',
+@@ -885,6 +885,13 @@
+   // its standard menus and application hide commands declared explicitly.
+   // Keep app.name stable: Electron derives its default userData directory from it.
+   const darwin = process.platform === 'darwin'
++  const market = createIpzskMarket({
++    manager: installer, packaged: !development, catalog: () => account.pluginMarket(),
++    hooks: { beforeChange: () => backend.stop(), afterChange: () => reconcileBackend() },
++    beforeInstall: async () => { await startup },
++    afterInstall: () => navigateMain(applicationUrl),
++    onInstallError: async (error) => { reportFatal(error, 'main') },
++  })
+   const platformMenus = (): MenuItemConstructorOptions[] => darwin
+     ? [shortcuts.fileMenu(currentDesktopLocale().messages), { role: 'editMenu' }, { role: 'windowMenu' }]
+     : [{ role: 'editMenu' }]
+@@ -894,6 +901,9 @@
+       { role: 'unhide', label: currentDesktopLocale().messages.showAllApplications }, { type: 'separator' }]
+     : []
+   const applicationItems = (): MenuItemConstructorOptions[] => [
++    { label: 'IPZSK 账户与余额', click: () => { void account.openAccount() } },
++    { label: 'IPZSK 插件市场', click: () => { market.open() } },
++    { type: 'separator' },
+     // Windows has no system About panel; Electron's fallback is a plain
+     // message box, so the shell shows its own dimmed dialog instead.
+     process.platform === 'win32'
+@@ -1145,13 +1155,7 @@
+     locale = resolveDesktopStartupLocale(state.localePreference, systemLanguages)
+     windowsLanguage = locale.id
+     refreshApplicationMenu()
+-    if (!enteredWorkspace && needsWelcome({ loggedIn: state.loggedIn, hasApiKey: state.hasApiKey })) {
+-      // A later login must retain its own activation policy instead of replaying startup focus.
+-      raiseAfterUpdate = false
+-      await showWelcome()
+-    } else {
+-      await enterWorkspace()
+-    }
++    await enterWorkspace()
    }
--  return layers.flat()
-+  const patches = layers.flat()
-+  return bootstrap === undefined ? patches : [...patches, ...ipzskPluginPatches(bootstrap, profile.layers, patches)]
- }
- 
- function dshVersion(runtimeDir: string): string {
-@@ -280,24 +283,25 @@
-   runtimeDir: string,
-   projectDir: string,
-   writeResponse: (frame: Buffer) => Promise<void>,
--  options: { allowLinkedPackages?: boolean } = {},
-+  options: { allowLinkedPackages?: boolean; bootstrap?: IpzskHostBootstrap; pluginDataDir?: string } = {},
- ): Promise<DesktopHostController> {
-   const absoluteProject = resolve(projectDir)
-   mkdirSync(absoluteProject, { recursive: true })
-   const rootConfig = join(absoluteProject, ROOT_CONFIG_FILENAME)
-   writeFileSync(rootConfig, ROOT_CONFIG)
--  const environment = loadLayeredEnv('dsh desktop')
-+  const baseEnvironment = loadLayeredEnv('dsh desktop')
-+  const environment = options.bootstrap === undefined ? baseEnvironment : withIpzskEnvironment(baseEnvironment, options.bootstrap)
-   let current: Context | undefined
--  const ctx = await boot('dsh desktop', rootConfig, structuredClone(desktopPatches(
--    resolve(runtimeDir),
--    absoluteProject,
--    options.allowLinkedPackages === true,
--  )), (hostCtx) => {
-+  const patches = desktopPatches(resolve(runtimeDir), absoluteProject, options.allowLinkedPackages === true, options.bootstrap)
-+  if (options.bootstrap !== undefined) patches.push(...ipzskModelPatches(options.bootstrap))
-+  const ctx = await boot('dsh desktop', rootConfig, structuredClone(patches), (hostCtx) => {
-     current = hostCtx
-     hostCtx.provide(DSH_LAUNCH_ENVIRONMENT_KEY, environment)
-+    hostCtx.provide('ipzskDesktop', { dataDir: options.pluginDataDir ?? join(absoluteProject, 'data') })
-     provideCmdline(hostCtx, { args: [], exit: () => {} })
-   })
-   current = ctx
-+  if (options.bootstrap !== undefined) await applyIpzskModelSettings(ctx, options.bootstrap)
-   const connection = ctx.get('connection')
-   const clientModules = ctx.get('clientModules')
-   const gateway = ctx.get('typertGateway')
-@@ -407,7 +411,30 @@
-       if ((error as NodeJS.ErrnoException).code !== 'ERR_IPC_CHANNEL_CLOSED') throw error
+   focusPrimaryWindow = () => {
+     if (quitting) return
+@@ -1185,6 +1189,8 @@
+   const finishQuit = (): void => {
+     quitting = true
+     shuttingDown = true
++    market.dispose()
++    account.dispose()
+     updateJournal?.action('quit-requested')
+     quitConfirmation.dispose()
+     backgroundNotice?.dispose()
+--- a/apps/desktop/tsconfig.host.json
++++ b/apps/desktop/tsconfig.host.json
+@@ -28,6 +28,9 @@
+     },
+     {
+       "path": "../../packages/util/atomic-write"
++    },
++    {
++      "path": "../../packages/boot/plugin-manager"
      }
-   }
--  const controller = await runDesktopHost(runtimeDir, projectDir, writeResponse, { allowLinkedPackages: option !== undefined })
-+  const bootstrap = parseIpzskHostBootstrap(await receiveIpzskBootstrap())
-+  let cancelledDuringBoot = false
-+  const cancelBoot = (): void => { cancelledDuringBoot = true }
-+  const startupMessage = (message: unknown): void => { if (!isDesktopHostCommand(message)) requestedBootError = new Error('IPZSK received an invalid startup control message'); cancelBoot() }
-+  let requestedBootError: Error | undefined
-+  process.on('message', startupMessage)
-+  process.once('disconnect', cancelBoot)
-+  let controller: DesktopHostController
-+  try {
-+    controller = await runDesktopHost(runtimeDir, projectDir, writeResponse, { allowLinkedPackages: option !== undefined, bootstrap, pluginDataDir: join(dirname(dirname(projectDir)), 'plugin-data') })
-+  } finally {
-+    process.off('message', startupMessage)
-+    process.off('disconnect', cancelBoot)
-+  }
-+  if (cancelledDuringBoot || !process.connected) {
-+    await controller.dispose()
-+    requestPipe.destroy()
-+    responsePipe.destroy()
-+    closeSync(DESKTOP_REQUEST_PIPE_FD)
-+    closeSync(DESKTOP_RESPONSE_PIPE_FD)
-+    if (process.connected) process.disconnect()
-+    if (requestedBootError !== undefined) throw requestedBootError
-+    return
-+  }
-   send({
-     type: 'ready',
-     protocolVersion: DESKTOP_HOST_PROTOCOL_VERSION,
-@@ -584,7 +611,10 @@
- if (import.meta.main) {
-   main().catch((error: unknown) => {
-     const message = error instanceof Error ? error.message : String(error)
--    if (process.send !== undefined) process.send({ type: 'fatal', message } satisfies DesktopHostEvent)
-+    if (process.send !== undefined && process.connected) {
-+      // A disconnected parent cannot receive diagnostics; never emit the bootstrap payload.
-+      process.send({ type: 'fatal', message } satisfies DesktopHostEvent, () => {})
-+    }
-     else process.stderr.write(`dsh desktop: ${message}\n`)
-     process.exitCode = 1
-   })
+   ],
+   "exclude": [
 --- a/apps/desktop/tsdown.config.ts
 +++ b/apps/desktop/tsdown.config.ts
-@@ -12,7 +12,7 @@
+@@ -77,7 +77,7 @@
      clean: false,
      deps: { neverBundle: ['electron'] },
    },
--  ...(['preload', 'preload-app'] as const).map(name => ({
-+  ...(['preload', 'preload-app', 'ipzsk-preload', 'ipzsk-market-preload'] as const).map(name => ({
+-  ...(['preload-app', 'preload-welcome', 'preload-platform-account', 'preload-mandatory', 'preload-update-dialog'] as const).map(name => ({
++  ...(['ipzsk-preload', 'ipzsk-market-preload', 'preload-app', 'preload-welcome', 'preload-platform-account', 'preload-mandatory', 'preload-update-dialog'] as const).map(name => ({
      // Sandboxed Electron preloads run as CommonJS even though the application package is ESM.
      entry: { [name]: `lib/types/${name}.js` },
-     outDir: 'lib',
---- a/apps/desktop-host/tsconfig.json
-+++ b/apps/desktop-host/tsconfig.json
-@@ -14,6 +14,7 @@
-     { "path": "../../packages/client/connection/tsconfig.host.json" },
-     { "path": "../../packages/client/modules" },
-     { "path": "../../packages/host/webserver" },
--    { "path": "../../packages/util/launch-environment" }
-+    { "path": "../../packages/util/launch-environment" },
-+    { "path": "../../packages/settings/settings" }
-   ]
- }
---- a/apps/desktop-host/package.json
-+++ b/apps/desktop-host/package.json
-@@ -24,5 +24,6 @@
-     "@deepseek-ai/dsh-host-webserver": "workspace:^",
-     "@deepseek-ai/dsh-launch-environment": "workspace:^",
-     "@deepseek-ai/dsh-web-frontend": "workspace:^"
--  }
-+  },
-+  "devDependencies": { "@deepseek-ai/dsh-settings": "workspace:^" }
- }
---- a/pnpm-lock.yaml
-+++ b/pnpm-lock.yaml
-@@ -577,6 +577,10 @@
-       '@deepseek-ai/dsh-web-frontend':
-         specifier: workspace:^
-         version: link:../web
-+    devDependencies:
-+      '@deepseek-ai/dsh-settings':
-+        specifier: workspace:^
-+        version: link:../../packages/settings/settings
+     plugins: [packagedImportsPlugin(preloadImports)],
+--- a/packages/boot/plugin-manager/src/operations.ts
++++ b/packages/boot/plugin-manager/src/operations.ts
+@@ -300,6 +300,16 @@
+     return { exitCode: 1, output: bytes.subarray(Math.max(0, bytes.length - options.outputBytes)).toString('utf8'), truncated: bytes.length > options.outputBytes, logPath }
+   }
+   const before = readProfileManifest('dsh', dir)
++  // IPZSK content-addressed releases can only be upgraded through their verified market.
++  const reviewed = Object.entries(before.dependencies ?? {})
++    .filter(([, spec]) => /^file:\.?\/?\.ipzsk-packages\/[a-f0-9]{64}\.tgz$/u.test(spec)).map(([name]) => name)
++  const command = args.find(arg => !arg.startsWith('-'))
++  const targets = args.slice(args.indexOf(command ?? '') + 1).filter(arg => !arg.startsWith('-'))
++  if ((command === 'update' || command === 'up' || command === 'upgrade') && reviewed.some(name => targets.length === 0 || targets.some(spec => spec === name || spec.startsWith(name + '@')))
++    || (command === 'add' || command === 'install' || command === 'i') && targets.some(spec => reviewed.some(name => spec === name || spec.startsWith(name + '@')))) {
++    await log.close()
++    throw new Error('请通过 IPZSK 插件市场更新审核插件。')
++  }
+   const savedFiles = ['package.json', 'pnpm-lock.yaml'].map(name => ({ path: join(dir, name), text: optionalFile(join(dir, name)) }))
+   const beforeDependencies = directDependencies(before)
+   const installedBefore = new Map(Object.keys(beforeDependencies).map(name => [name, optionalFile(join(dir, 'node_modules', name, 'package.json'))]))
+--- a/packages/settings/settings/src/index.ts
++++ b/packages/settings/settings/src/index.ts
+@@ -199,6 +199,7 @@
  
-   apps/web:
-     devDependencies:
+ /** Entry ids of the removed `settings.yaml` sections whose owning entry carries another id. */
+ const LEGACY_SECTION_ENTRIES: Record<string, string> = {
++  'dsh-imagegen': 'imagegen',
+   'ui-developer-tools': 'ui-settings',
+   'ui-onboarding': 'ui-settings-general',
+   /* v8 ignore next -- the base bundle composes one shell executor per platform */
 --- a/scripts/client-build-environment.ts
 +++ b/scripts/client-build-environment.ts
 @@ -19,7 +19,7 @@
@@ -281,29 +484,3 @@
  } as const
  
  /** Public variable carrying the source commit embedded in client artifacts. */
---- a/apps/desktop/electron-builder.config.mjs
-+++ b/apps/desktop/electron-builder.config.mjs
-@@ -54,8 +54,8 @@
-   const buildPaths = desktopTargetBuildPaths(resolveDesktopBuildTarget(env, hostPlatform, hostArch))
-   return {
-     appId,
--    productName: 'DeepSeek Harness',
--    artifactName: 'deepseek-harness-${version}-${os}-${arch}.${ext}',
-+    productName: 'IPZSK Desktop Next',
-+    artifactName: 'IPZSK.Desktop.Next-${version}-${os}-${arch}.${ext}',
-     directories: { output: unsigned ? join(buildPaths.root, 'unsigned-artifacts') : buildPaths.artifacts },
-     asar: true,
-     files: [
---- a/apps/desktop/scripts/desktop-auto-update-environment.mjs
-+++ b/apps/desktop/scripts/desktop-auto-update-environment.mjs
-@@ -14,8 +14,8 @@
-     secretKeyEnvName: 'DOWNLOAD_TEST_COS_SECRET_KEY',
-   },
-   production: {
--    originEnvName: undefined,
--    fixedOrigin: 'https://download.deepseek.com',
-+    originEnvName: 'IPZSK_DESKTOP_UPDATE_ORIGIN',
-+    fixedOrigin: undefined,
-     bucketEnvName: 'DOWNLOAD_PROD_COS_BUCKET',
-     secretIdEnvName: 'DOWNLOAD_PROD_COS_SECRET_ID',
-     secretKeyEnvName: 'DOWNLOAD_PROD_COS_SECRET_KEY',

@@ -7,7 +7,8 @@
  * entry and the split-pane generation studio.
  */
 
-import type { Context } from '@deepseek-ai/cordis'
+import type {} from '@deepseek-ai/cordis-plugin-loader'
+import type { Context, Volatile } from '@deepseek-ai/cordis'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import z from '@deepseek-ai/schemastery'
@@ -114,7 +115,7 @@ export interface Config {
   imageModels?: string[]
 }
 
-export const Config: z<Config> = z.object({
+export const Config = z.object({
   enabled: z.boolean().default(true),
   announceToAgent: z.boolean().default(true),
   allowAgentImageGeneration: z.boolean().default(true),
@@ -144,7 +145,7 @@ export const Config: z<Config> = z.object({
   apiUrl: z.string().default(''),
   apiKey: z.string().role('secret').default(''),
   imageModels: z.array(z.string()).default([]),
-})
+}).volatile()
 
 /** Schema defaults, re-read for hand-built contexts (the loader applies them normally). */
 const DEFAULT_ENABLED = true
@@ -221,11 +222,10 @@ export interface EffectiveConfig {
  * @param ctx - host plugin context carrying Connection, systemPrompt and ipzskDesktop.
  * @param config - resolved plugin config (schema defaults applied by the loader).
  */
-export function apply(ctx: Context, config?: Config): (() => void) | void {
+export function apply(ctx: Context, config: Volatile<Config>): (() => void) | void {
   configureStorage((ctx.get('ipzskDesktop') as { dataDir?: string } | undefined)?.dataDir as string)
-  // The live source the surfaces read: the settings section once the settings
-  // service is attached, the composition entry otherwise.
-  let current: () => Config = () => config ?? {}
+  // The official live Config reference follows profile edits without remounting.
+  const current = () => config.get()
   const resolve = (): EffectiveConfig => {
     const value = current() ?? {}
     let channels = normalizeChannels(value.channels)
@@ -409,16 +409,9 @@ export function apply(ctx: Context, config?: Config): (() => void) | void {
     })
   }
 
-  ctx.inject(['settings'], sctx => sctx.settings.installSection(ctx, ImageGenSettingsNamespace, Config, config ?? {}, {
-    setSource: (source) => {
-      current = source
-      sync()
-    },
-    onChange: sync,
-  }))
+  ctx.inject(['settings'], sctx => sctx.effect(() => sctx.settings.configure({ auto: false }, ctx.fiber)))
+  ctx.on('loader/volatile-update', sync)
 
-  // Initial registration from the composition entry (covers deployments with
-  // no settings service, whose installSettingsSection never fires its hooks).
   sync()
 
   return () => { setStorageSyncHandler(undefined) }

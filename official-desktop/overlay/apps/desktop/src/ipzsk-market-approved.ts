@@ -24,7 +24,7 @@ const ID = /^[0-9a-f-]{36}$/iu
 const PACKAGE = /^(?:@[a-z0-9-]+\/)?[a-z0-9][a-z0-9._-]*$/u
 const BLOCKED = new Set(['dsh-plugin-desktop', 'dsh-plugin-desktop-beta', 'dsh-community-market', 'dsh-ipzsk-market', 'dshmarket'])
 /** Upstream API capability baseline; independent of the IPZSK product release number. */
-export const IPZSK_DESKTOP_API_VERSION = '0.1.5-rc.2'
+export const IPZSK_DESKTOP_API_VERSION = '0.1.7-rc.2'
 
 export type PluginInstallState = 'install' | 'update' | 'current' | 'ahead'
 /** Compare release precedence, including prereleases, in the trusted main process. */
@@ -82,12 +82,7 @@ export function assertDesktopCompatibility(manifest: Record<string, unknown>, ho
     || valid(desktop.minVersion) !== desktop.minVersion || !gte(hostVersion, desktop.minVersion)) {
     throw new Error('该插件版本尚未适配当前官方桌面架构，请等待开发者发布并审核兼容版本。')
   }
-  for (const key of ['dependencies', 'optionalDependencies', 'peerDependencies']) {
-    const dependencies = manifest[key]
-    if (record(dependencies) && Object.hasOwn(dependencies, '@deepseek-ai/dsh-host-webserver')) {
-      throw new Error('该插件仍依赖 HTTP webServer，无法安装到当前官方桌面客户端。')
-    }
-  }
+
 }
 
 /** Check reviewed bytes, package identity, bundle path, and desktop transport. */

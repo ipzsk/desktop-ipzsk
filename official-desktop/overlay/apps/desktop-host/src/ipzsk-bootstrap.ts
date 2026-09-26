@@ -19,8 +19,12 @@ export interface IpzskHostBootstrap {
   readonly models: IpzskHostModel[]
   readonly image_models: { id: string; name: string; sizes: string[]; default_size: string }[]
   readonly plugin_configs: {
-    plugin_id: string; credential: string; package: string; id: string
-    config: Record<string, unknown>; credential_paths: string[][]
+    plugin_id: string
+    credential: string
+    package: string
+    id: string
+    config: Record<string, unknown>
+    credential_paths: string[][]
   }[]
 }
 
@@ -37,7 +41,7 @@ function validateJson(value: unknown, depth = 0): void {
   if (depth > 12) invalid()
   if (value === null || typeof value === 'boolean' || typeof value === 'string') return
   if (typeof value === 'number' && Number.isFinite(value)) return
-  if (Array.isArray(value)) { value.forEach(entry => { validateJson(entry, depth + 1) }); return }
+  if (Array.isArray(value)) { value.forEach((entry) => { validateJson(entry, depth + 1) }); return }
   if (isRecord(value)) {
     for (const [key, entry] of Object.entries(value)) {
       if (FORBIDDEN_KEYS.has(key)) invalid()
@@ -53,7 +57,7 @@ export function parseIpzskHostBootstrap(value: unknown): IpzskHostBootstrap {
   if (!isRecord(value) || value.version !== 1 || typeof value.token !== 'string' || !TOKEN.test(value.token)
     || typeof value.default_model !== 'string' || !Array.isArray(value.models)
     || value.models.length < 1 || value.models.length > 256) invalid()
-  const models = value.models.map(entry => {
+  const models = value.models.map((entry) => {
     if (!isRecord(entry) || typeof entry.id !== 'string' || !MODEL_ID.test(entry.id)
       || !text(entry.name) || !integer(entry.contextWindow) || !integer(entry.maxTokens)) invalid()
     return { id: entry.id, name: entry.name, contextWindow: entry.contextWindow, maxTokens: entry.maxTokens }
@@ -61,16 +65,16 @@ export function parseIpzskHostBootstrap(value: unknown): IpzskHostBootstrap {
   if (!models.some(model => model.id === value.default_model) || new Set(models.map(model => model.id)).size !== models.length) invalid()
   const images = value.image_models ?? []
   if (!Array.isArray(images) || images.length > 100) invalid()
-  const image_models = images.map(entry => {
+  const image_models = images.map((entry) => {
     if (!isRecord(entry) || typeof entry.id !== 'string' || !MODEL_ID.test(entry.id) || !text(entry.name)
       || !Array.isArray(entry.sizes) || entry.sizes.length < 1 || entry.sizes.length > 100
       || entry.sizes.some(size => !text(size, 32)) || typeof entry.default_size !== 'string'
       || !entry.sizes.includes(entry.default_size)) invalid()
-    return { id: entry.id, name: entry.name, sizes: [...entry.sizes] as string[], default_size: entry.default_size }
+    return { id: entry.id, name: entry.name, sizes: [...(entry.sizes as string[])], default_size: entry.default_size }
   })
   const plugins = value.plugin_configs ?? []
   if (!Array.isArray(plugins) || plugins.length > 20) invalid()
-  const plugin_configs = plugins.map(entry => {
+  const plugin_configs = plugins.map((entry) => {
     if (!isRecord(entry) || typeof entry.plugin_id !== 'string' || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/iu.test(entry.plugin_id)
       || typeof entry.credential !== 'string' || !TOKEN.test(entry.credential)
       || typeof entry.package !== 'string' || !/^(@[a-z0-9-]+\/)?[a-z0-9-]+$/u.test(entry.package)
@@ -78,10 +82,10 @@ export function parseIpzskHostBootstrap(value: unknown): IpzskHostBootstrap {
       || !isRecord(entry.config) || !Array.isArray(entry.credential_paths) || entry.credential_paths.length > 100) invalid()
     validateJson(entry.config)
     if (JSON.stringify(entry.config).length > 256_000) invalid()
-    const paths = entry.credential_paths.map(path => {
+    const paths = entry.credential_paths.map((path) => {
       if (!Array.isArray(path) || path.length < 1 || path.length > 5
         || path.some(key => typeof key !== 'string' || !/^[a-zA-Z0-9_-]+$/u.test(key) || FORBIDDEN_KEYS.has(key))) invalid()
-      return [...path] as string[]
+      return [...(path as string[])]
     })
     return { plugin_id: entry.plugin_id, credential: entry.credential, package: entry.package, id: entry.id,
       config: structuredClone(entry.config), credential_paths: paths }
@@ -136,20 +140,14 @@ export function ipzskPluginPatches(
     }
   }
   collectActive(composeEntries([[...composition]]))
-  return bootstrap.plugin_configs.flatMap(entry => {
+  return bootstrap.plugin_configs.flatMap((entry) => {
     const active = activeRows.get(entry.id)
     if (!active || typeof active.name !== 'string') return []
-    let owned = false
-    const inspect = (rows: readonly Row[]): void => {
-      for (const row of rows) {
-        if (row.id === entry.id && row.name === active.name) owned = true
-        if (row.group && Array.isArray(row.config)) inspect(row.config as Row[])
-      }
-    }
-    for (const layer of installedLayers) {
-      if (layer.packageName !== entry.package) continue
-      for (const patch of layer.patches) if (patch.insert) inspect(patch.insert)
-    }
+    const ownsRow = (rows: readonly Row[]): boolean => rows.some(row =>
+      row.id === entry.id && row.name === active.name
+      || !!row.group && Array.isArray(row.config) && ownsRow(row.config as Row[]))
+    const owned = installedLayers.some(layer => layer.packageName === entry.package
+      && layer.patches.some(patch => patch.insert !== undefined && ownsRow(patch.insert)))
     if (!owned) return []
     const config = structuredClone({ ...(isRecord(active.config) ? active.config : {}), ...entry.config })
     for (const path of entry.credential_paths) {
@@ -158,7 +156,9 @@ export function ipzskPluginPatches(
         if (!isRecord(parent[key])) parent[key] = {}
         parent = parent[key] as Record<string, unknown>
       }
-      parent[path.at(-1)!] = entry.credential
+      const leaf = path.at(-1)
+      if (leaf === undefined) invalid()
+      parent[leaf] = entry.credential
     }
     return [{ id: entry.id, name: active.name, config }]
   })
@@ -170,7 +170,17 @@ export async function applyIpzskModelSettings(ctx: Context, bootstrap: IpzskHost
   if (settings === undefined) throw new Error('IPZSK 模型设置服务未启动。')
   // A path mutation replaces the complete IPZSK provider while preserving other providers and preferences.
   await settings.mutate('llm-pi-ai', [{ op: 'set', path: ['providers', 'ipzsk'], value: provider(bootstrap) }])
-  const previous = settings.get('agent-default-model')
+  const previous = settings.describe().find(row => row.ns === 'agent-default-model')?.value
   if (isRecord(previous) && previous.provider === 'ipzsk' && bootstrap.models.some(model => model.id === previous.model)) return
   await settings.replace('agent-default-model', { provider: 'ipzsk', model: bootstrap.default_model })
+}
+
+/** Inject plugin credentials only into resolved Config, leaving editable profile rows credential-free. */
+export function installIpzskPluginConfig(ctx: Context, patches: readonly PatchOptions[]): void {
+  ctx.on('internal/config', function (_config, next) {
+    const config = next() as unknown
+    const patch = patches.find(row => row.id === this.entry?.options.id && row.name === this.entry?.options.name)
+    if (patch === undefined) return config
+    return { ...(isRecord(config) ? config : {}), ...structuredClone(patch.config as Record<string, unknown>) }
+  }, { global: true })
 }

@@ -2,7 +2,7 @@
  * The dsh-imagegen settings card: channel management (list rows with status
  * dots, an editor dialog with the model-catalog alias → upstream mapping, and
  * built-in provider presets), plus the prompt-enhancement model and the plugin
- * switches. Registers into the official `settings.plugin.item` slot (the
+ * switches. Registers into the official `settings.plugins.tab` slot (the
  * Settings → Plugins → Configurable tab), independent of the dsh-web-ui family
  * group, bound to the plugin's own bridge settings scope.
  *
@@ -167,7 +167,7 @@ export class ImageGenSettingsCardController {
 
 /** Props the renderer binds for this card. */
 export type ImageGenSettingsCardProps =
-  PropsRuntime<'settings.plugin.item'>
+  PropsRuntime<'settings.plugins.tab'>
   & PropsLocale<'dsh-imagegen'>
   & InjectFace<ImageGenSettingsCardFace>
 

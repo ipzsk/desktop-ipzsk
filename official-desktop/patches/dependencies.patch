@@ -1,0 +1,29 @@
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -615,6 +615,9 @@
+       '@deepseek-ai/dsh-home-paths':
+         specifier: workspace:*
+         version: link:../../packages/util/home-paths
++      '@deepseek-ai/dsh-plugin-manager':
++        specifier: workspace:*
++        version: link:../../packages/boot/plugin-manager
+       '@deepseek-ai/node-addon-system':
+         specifier: workspace:~
+         version: link:../../native/system/packages/entry
+@@ -726,6 +729,16 @@
+       '@deepseek-ai/libreoffice-kit':
+         specifier: ^0.1.1
+         version: 0.1.1
++    devDependencies:
++      '@deepseek-ai/cordis-plugin-include':
++        specifier: workspace:~
++        version: link:../../vendor/include
++      '@deepseek-ai/dsh-launch-environment':
++        specifier: workspace:*
++        version: link:../../packages/util/launch-environment
++      '@deepseek-ai/dsh-settings':
++        specifier: workspace:*
++        version: link:../../packages/settings/settings
+ 
+   apps/web:
+     devDependencies:

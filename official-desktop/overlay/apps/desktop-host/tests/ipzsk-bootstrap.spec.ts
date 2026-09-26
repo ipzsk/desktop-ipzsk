@@ -73,7 +73,7 @@ describe('private IPZSK Host bootstrap', () => {
       plugin_id: '00000000-0000-0000-0000-000000000000', credential: fixture().token,
       package: 'dsh-imagegen', id: 'imagegen', config: {}, credential_paths: [['apiKey']],
     }] })
-    const layers = [{ packageName: 'dsh-imagegen', patches: [{ insert: [{ id: 'bundle', group: true, config: [{ id: 'imagegen', name: 'dsh-imagegen' }] }] }] }]
+    const layers = [{ packageName: 'dsh-imagegen', patches: [{ insert: [{ id: 'bundle', name: 'group', group: true as const, config: [{ id: 'imagegen', name: 'dsh-imagegen' }] }] }] }]
     const composition = layers.flatMap(layer => layer.patches)
     expect(ipzskPluginPatches(bootstrap, layers, composition)).toEqual([{ id: 'imagegen', name: 'dsh-imagegen', config: { apiKey: fixture().token } }])
     expect(ipzskPluginPatches(bootstrap, layers, [...composition, { id: 'bundle', disabled: true }])).toEqual([])

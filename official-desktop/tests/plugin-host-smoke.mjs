@@ -8,7 +8,7 @@ import { createHash } from 'node:crypto';
 import { createReadStream, globSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, readFile, realpath, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { Server, Socket } from 'node:net';
+
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { Readable } from 'node:stream';
@@ -47,7 +47,8 @@ if (!childMode) {
 
 async function smoke(fixture) {
   let egressAttempts = 0;
-  const rejectNetwork = () => { egressAttempts++; throw Error('Host smoke forbids network and listening sockets'); };
+  const rejectNetwork = () => { egressAttempts++; throw Error('Host smoke forbids external network'); };
+  const nativeFetch = globalThis.fetch;
   const imageCredential = 'ipz_' + 'i'.repeat(43);
   const png = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360000002000100ffff03000006000557bfabd40000000049454e44ae426082', 'hex');
   let imageCalls = 0;
@@ -60,16 +61,14 @@ async function smoke(fixture) {
       imageCalls++;
       return Response.json({data: [{b64_json: png.toString('base64')}]});
     }
+    if (new URL(String(url)).hostname === '127.0.0.1') return nativeFetch(url, init);
     return rejectNetwork();
   };
-  Server.prototype.listen = rejectNetwork;
-  Socket.prototype.connect = rejectNetwork;
 
   const importBuilt = relative => import(pathToFileURL(join(source, relative)).href);
-  const [{runDesktopHost}, {DesktopHostResponseDecoder, DESKTOP_PIPE_CHUNK_BYTES}, {validateDesktopPluginGraph}, {parseIpzskHostBootstrap}] = await Promise.all([
-    importBuilt('apps/desktop-host/lib/index.js'),
-    importBuilt('apps/desktop/lib/types/host-protocol.js'),
-    importBuilt('apps/desktop/lib/types/profile-packages.js'),
+  const [{runProfile}, {loadProfileDirectory, loadLayeredEnv}, {parseIpzskHostBootstrap, withIpzskEnvironment, ipzskPluginPatches, installIpzskPluginConfig, applyIpzskModelSettings}] = await Promise.all([
+    importBuilt('apps/cli/lib/profile-boot.js'),
+    importBuilt('packages/boot/app-boot/lib/index.js'),
     importBuilt('apps/desktop-host/lib/types/ipzsk-bootstrap.js'),
   ]);
   const {findPython, runProcess} = await import(pathToFileURL(join(project, 'plugins/doc-to-excel/lib/engine.js')).href);
@@ -111,13 +110,11 @@ async function smoke(fixture) {
   await copyPlugin(installedPlugin);
   const imageManifest = withImagegen ? JSON.parse(await readFile(join(project, 'plugins/imagegen/package.json'), 'utf8')) : undefined;
   if (imageManifest) await copyPlugin(join(profile, 'node_modules', imageManifest.name), join(project, 'plugins/imagegen'));
-  const descriptor = {sharedPackages};
-  validateDesktopPluginGraph(profile, runtime, descriptor, [pluginManifest.name, ...(imageManifest ? [imageManifest.name] : [])]);
   const requirePlugin = createRequire(join(installedPlugin, 'package.json'));
   for (const name of Object.keys(pluginManifest.peerDependencies)) {
     assert.equal(await realpath(requirePlugin.resolve(name + '/package.json')), await realpath(join(runtime, 'node_modules', name, 'package.json')));
   }
-  console.log('PASS installed plugin resolves exact official Host peers and passes dependency graph validation');
+  console.log('PASS installed plugin resolves exact official Host peers');
 
   // Move only our own temporary fixture into a development source link, so
   // runDesktopHost exercises the explicit allowLinkedPackages branch as well.
@@ -143,37 +140,29 @@ export function apply(ctx) {
     dsh: {profile: {bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', pluginManifest.name, ...(imageManifest ? [imageManifest.name] : []), probe]}},
   });
   const bootstrap = parseIpzskHostBootstrap({version: 1, token: 'ipz_' + 's'.repeat(43), default_model: 'smoke-local-only', models: [{id: 'smoke-local-only', name: 'Smoke fixture; never called', contextWindow: 8192, maxTokens: 1024}], image_models: [], plugin_configs: imageManifest ? [{plugin_id: '00000000-0000-4000-8000-000000000001', credential: imageCredential, package: imageManifest.name, id: 'imagegen', config: { channels: [{id: 'ipzsk', preset: '', name: 'IPZSK', apiUrl: 'https://api.ipzsk.com/v1', models: [{alias: 'smoke-image', id: 'gpt-image-2'}]}], channelSecrets: {}, defaultChannelId: 'ipzsk' }, credential_paths: [['channelSecrets', 'ipzsk']]}] : []});
-  const responses = new Map(), decoder = new DesktopHostResponseDecoder();
-  const host = await runDesktopHost(runtime, profile, async bytes => {
-    for (const frame of decoder.push(bytes)) {
-      const response = responses.get(frame.streamId);
-      assert.ok(response, 'Unexpected response stream');
-      if (frame.type === 'start') { response.status = frame.status; response.headers = frame.headers; }
-      else if (frame.type === 'data') { assert.ok(frame.data.length <= DESKTOP_PIPE_CHUNK_BYTES); response.chunks.push(frame.data); response.frames++; }
-      else if (frame.type === 'error') throw Error(frame.message);
-      else if (frame.type === 'end') response.ended = true;
-    }
-    await delay(1); // Exercise the actual Host writer's awaited backpressure.
-  }, {allowLinkedPackages: true, bootstrap});
-  let nextId = 0;
-  const fetchHost = async (url, init) => {
-    const request = new Request(new URL(url, 'dsh-app://app'), init);
-    const streamId = ++nextId, collected = {chunks: [], frames: 0, ended: false};
-    responses.set(streamId, collected);
-    try {
-      await host.fetch({streamId, request: {url: request.url, method: request.method, headers: [...request.headers]}}, request.body);
-      assert.equal(collected.ended, true, 'Host response did not finish');
-      const response = new Response(request.method === 'HEAD' ? null : Buffer.concat(collected.chunks), {status: collected.status, headers: collected.headers});
-      response.frameCount = collected.frames;
-      return response;
-    } finally { responses.delete(streamId); }
-  };
+  const installAnchor = join(runtime, 'node_modules/@deepseek-ai/dsh/package.json');
+  const loaded = loadProfileDirectory('dsh', profile, installAnchor);
+  const host = await runProfile({ profile: 'desktop', resolvedProfile: { profile: loaded, installAnchor }, patchFiles: [],
+    args: ['--no-open', '--port', '0'], environment: withIpzskEnvironment(loadLayeredEnv('dsh'), bootstrap),
+    beforeBoot: ctx => {
+      ctx.provide('ipzskDesktop', { dataDir: join(profile, 'data') });
+      installIpzskPluginConfig(ctx, ipzskPluginPatches(bootstrap, loaded.layers, [...loaded.layers.flatMap(layer => layer.patches), ...loaded.patches]));
+    },
+  });
+  await applyIpzskModelSettings(host.ctx, bootstrap);
+  const origin = `http://127.0.0.1:${host.ctx.webServer.port}`;
+  const login = await fetch(host.ctx.connection.authenticatedUrl(origin), {redirect: 'manual'});
+  assert.equal(login.status, 303);
+  const cookie = login.headers.get('set-cookie')?.split(';')[0];
+  assert.ok(cookie, 'Host did not issue a browser session');
+  const denied = await fetch(origin + '/api/doc-to-excel/config');
+  assert.equal(denied.status, 401);
+  const fetchHost = (url, init = {}) => fetch(new URL(url, origin), {...init, headers: {...init.headers, cookie, origin}});
   const post = value => ({method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify(value)});
   const api = '/api/doc-to-excel';
   try {
-    assert.equal(host.dshVersion, packages.get('@deepseek-ai/dsh').version);
     const health = await (await fetchHost('/api/ipzsk-smoke/health')).json();
-    assert.equal(health.webServer, false);
+    assert.equal(health.webServer, true);
     assert.equal(health.dataDir, join(profile, 'data'));
     assert.ok(health.providers.includes('ipzsk'));
     const entry = health.graph.entries.find(row => row.id === pluginManifest.name);
@@ -188,7 +177,7 @@ export function apply(ctx) {
     assert.equal(registration.id, pluginManifest.name);
     const client = registration.factory(() => { throw Error('Unexpected client external'); });
     assert.equal(typeof client.apply, 'function');
-    console.log('PASS actual Cordis Host has no webServer, correct data directory, IPZSK model catalog and official client bundle');
+    console.log('PASS actual Cordis Host has authenticated loopback HTTP, correct data directory, IPZSK model catalog and official client bundle');
 
     if (imageManifest) {
       const imageEntry = health.graph.entries.find(row => row.id === imageManifest.name);
@@ -198,6 +187,14 @@ export function apply(ctx) {
       assert.equal(described.status, 200);
       const settingsText = await described.text();
       assert.ok(!settingsText.includes(imageCredential), 'Client settings response leaked plugin credential');
+      const namespaces = JSON.parse(settingsText).value.namespaces;
+      assert.equal(namespaces.length, 1, 'Image settings form must remain available');
+      const edited = await (await fetchHost('/api/dsh-imagegen/settings/mutate', post({ns: 'imagegen', ops: [{op: 'set', path: ['announceToAgent'], value: false}], expectedRevision: namespaces[0].revision}))).json();
+      assert.equal(edited.ok, true, JSON.stringify(edited));
+      assert.equal(edited.value.value.announceToAgent, false);
+      const savedProfile = await readFile(join(profile, 'cordis.patch.yml'), 'utf8');
+      assert.ok(!savedProfile.includes(imageCredential), 'Editable profile leaked account-owned plugin credential');
+
       const generated = await fetchHost('/api/dsh-imagegen/generate', post({mode: 'text', model: 'smoke-image', prompt: 'synthetic smoke image', size: '1:1', quality: '4k', n: 1, detail: 'standard'}));
       assert.equal(generated.status, 200);
       const value = await generated.json();
@@ -235,7 +232,7 @@ export function apply(ctx) {
     assert.equal(rows.trim(), '2');
     const head = await fetchHost(api + '/download?id=' + id, {method: 'HEAD'});
     assert.equal(Number(head.headers.get('content-length')), (await stat(output)).size);
-    console.log('PASS actual Connection Word upload, local processing, framed Excel download and HEAD');
+    console.log('PASS actual Connection Word upload, local processing, streamed Excel download and HEAD');
 
     const size = (await stat(pdf)).size;
     const initialized = await fetchHost(api + '/large/init', post({name: 'synthetic.pdf', size, model: {provider: 'ipzsk', id: 'smoke-local-only'}}));
@@ -250,7 +247,6 @@ export function apply(ctx) {
     const digest = async path => { const hash = createHash('sha256'); for await (const chunk of createReadStream(path)) hash.update(chunk); return hash.digest('hex'); };
     assert.equal(await digest(pdf), await digest(join(profile, 'data/doc-to-excel-jobs/large', largeId, 'source.pdf')));
     assert.equal(egressAttempts, 0);
-    decoder.finish();
     console.log('PASS actual Host streams a PDF over 4 MiB in bounded chunks; source hash matches; zero external network/model requests');
-  } finally { await host.dispose(); }
+  } finally { await host.shutdown.shutdown(0); }
 }
