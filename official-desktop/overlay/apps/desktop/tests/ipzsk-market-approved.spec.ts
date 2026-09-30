@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { approvedCatalog, downloadApproved, isApprovedArchiveSpec, verifyArchive } from '../src/ipzsk-market-approved.ts'
 import { marketFixture } from './ipzsk-market-fixture.ts'
 
-const baseline = '0.1.7-rc.2'
+const baseline = '0.2.0-rc.2'
 describe('IPZSK reviewed artifact boundary', () => {
   it('accepts exact reviewed GitHub identities and blocks host packages or unpinned data', () => {
     const { plugin } = marketFixture()

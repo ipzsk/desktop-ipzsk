@@ -1,3 +1,5 @@
+> This branch integrates **IPZSK Desktop Next 3.0.0-beta.4 / DeepSeek Harness 0.2.0-rc.2** with IPZSK login, models and plugins. See [official-desktop/README.md](official-desktop/README.md) for the source entry point and build instructions. The content below describes the existing 2.x client.
+
 <p align="center">
   <a href="https://dshdesktop.cn"><img src="assets/desktop-hero-en.png" alt="DSH Desktop, an open-source desktop client built on DeepSeek Harness" width="100%"></a>
 </p>

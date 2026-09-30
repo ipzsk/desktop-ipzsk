@@ -19,17 +19,15 @@
        hostCtx.provide(DSH_LAUNCH_ENVIRONMENT_KEY, options.environment)
 --- a/apps/desktop-host/package.json
 +++ b/apps/desktop-host/package.json
-@@ -24,5 +24,10 @@
-     "@deepseek-ai/dsh-skill-office": "workspace:*",
-     "@deepseek-ai/dsh-deepseek-account": "workspace:*",
+@@ -28,6 +28,8 @@
      "@deepseek-ai/dsh-workspace": "workspace:*"
-+  },
-+  "devDependencies": {
+   },
+   "devDependencies": {
 +    "@deepseek-ai/dsh-settings": "workspace:*",
 +    "@deepseek-ai/dsh-launch-environment": "workspace:*",
-+    "@deepseek-ai/cordis-plugin-include": "workspace:~"
-   }
- }
+     "@deepseek-ai/cordis-plugin-loader": "workspace:~",
+     "@deepseek-ai/cordis-plugin-include": "workspace:~",
+     "@deepseek-ai/dsh-skill": "workspace:*"
 --- a/apps/desktop-host/src/index.ts
 +++ b/apps/desktop-host/src/index.ts
 @@ -1,6 +1,8 @@
@@ -144,13 +142,12 @@
  }
 --- a/apps/desktop/package.json
 +++ b/apps/desktop/package.json
-@@ -75,6 +75,7 @@
-     "vite": "^6.0.0",
+@@ -79,6 +79,7 @@
      "@deepseek-ai/dsh-client-ui-theme": "workspace:*",
      "@deepseek-ai/dsh-client-shortcuts": "workspace:*",
--    "@deepseek-ai/dsh-atomic-write": "workspace:*"
-+    "@deepseek-ai/dsh-atomic-write": "workspace:*",
-+    "@deepseek-ai/dsh-plugin-manager": "workspace:*"
+     "@deepseek-ai/dsh-atomic-write": "workspace:*",
++    "@deepseek-ai/dsh-plugin-manager": "workspace:*",
+     "@deepseek-ai/dsh-client-product-analytics": "workspace:*"
    }
  }
 --- a/apps/desktop/scripts/desktop-auto-update-environment.mjs
@@ -260,7 +257,7 @@
          child.kill('SIGTERM')
 --- a/apps/desktop/src/main.ts
 +++ b/apps/desktop/src/main.ts
-@@ -2,6 +2,11 @@
+@@ -3,6 +3,11 @@
  /** Electron shell: desktop project ownership, custom protocol, windows, and lifecycle. */
  
  import { readFile, writeFile } from 'node:fs/promises'
@@ -272,7 +269,7 @@
  import { join } from 'node:path'
  import { fileURLToPath } from 'node:url'
  import {
-@@ -36,7 +41,7 @@
+@@ -39,7 +44,7 @@
  import { DesktopFatalRecovery } from './fatal-recovery.ts'
  import { pruneCrashReports, RendererConsoleTail, writeCrashReport, type CrashReportSource } from './crash-report.ts'
  import { openWelcomeWindow } from './welcome-window.ts'
@@ -281,7 +278,7 @@
  import { connectDesktopWelcome, type DesktopWelcomeBackend } from './welcome-backend.ts'
  import { DesktopUpdateJournal } from './update-journal.ts'
  import { DesktopUpdatePreparationError } from './update-error.ts'
-@@ -55,6 +60,12 @@
+@@ -59,6 +64,13 @@
  import { DesktopQuitConfirmation } from './quit-confirmation.ts'
  import { DesktopTray } from './tray.ts'
  import { DesktopBackgroundNotice } from './background-notice.ts'
@@ -291,10 +288,11 @@
 +mkdirSync(ipzskUserData, { recursive: true, mode: 0o700 })
 +app.setPath('userData', ipzskUserData)
 +process.env.DSH_HOME = join(ipzskUserData, 'dsh-home')
++process.env.DSH_TELEMETRY_DISABLED = '1'
  
  let focusPrimaryWindow = (): void => {}
  let stopForRecovery = async (): Promise<void> => {}
-@@ -380,7 +391,6 @@
+@@ -414,7 +426,6 @@
    let openedAttempt: string | undefined
    let returnedAttempt: string | undefined
    let pendingWelcomeNotice: WelcomeNotice | undefined
@@ -302,7 +300,7 @@
    const assertProductSender = (event: IpcMainInvokeEvent): void => {
      assertDesktopSender(event, ['app'])
      if (mainWindow === undefined || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents
-@@ -405,12 +415,18 @@
+@@ -439,12 +450,18 @@
    }
    const platformView = new DesktopPlatformView(join(app.getAppPath(), 'lib', 'preload-platform-account.cjs'),
      () => locale.id === 'zh-CN' ? 'zh_CN' : 'en_US', process.platform === 'win32' ? 'win32' : 'darwin')
@@ -315,14 +313,14 @@
    const backend = new DesktopBackendController((onFailure) => {
      const hostInspectPort = developmentHostInspectPort(development)
      const host = new DesktopHostProcess(resources.node, resources.dsh, activeProject,
-       hostInspectPort, process.env, onFailure,
+       hostInspectPort, { ...hostEnvironment, DSH_CLIENT_VERSION: desktopClientVersion() }, onFailure,
        primaryRuntime,
 -      resources, (next) => { platformView.setSession(next) })
 +      resources, (next) => { platformView.setSession(next) }, account.bootstrap())
      return {
        start: async () => {
          const ready = await host.start()
-@@ -434,28 +450,10 @@
+@@ -470,28 +487,10 @@
              focusPrimaryWindow()
            }
            if (state.status === 'credential-stored' && attempt?.phase === 'succeeded' && welcomeWindow !== undefined) void enterWorkspace({ activate: false }).catch(() => undefined)
@@ -349,22 +347,24 @@
 -            if (welcomeWindow !== undefined && !welcomeWindow.isDestroyed()) welcomeWindow.webContents.send(WELCOME_IPC.state, state)
 -          }).catch(() => undefined)
 +          // IPZSK session expiry is handled by the account controller.
-         })
+         }, (enabled) => { analyticsEnabled = enabled })
        },
        stop: async () => {
-@@ -529,8 +527,10 @@
+@@ -567,8 +566,12 @@
    const reconcileBackend = (): Promise<void> => {
      startup ??= (async () => {
        await navigateMain(applicationUrl)
 +      if (!await account.ensureSignedIn()) { quitWithoutConfirmation(); return }
        await backend.start(async () => {
--        await manager.applyRelease()
-+        if (development) await manager.applyRelease()
-+        else await prepareBundledPreviewProfile(installer, process.resourcesPath)
+-        await Promise.all([manager.applyRelease(), prepareHostEnvironment()])
++        await Promise.all([
++          development ? manager.applyRelease() : prepareBundledPreviewProfile(installer, process.resourcesPath),
++          prepareHostEnvironment(),
++        ])
        })
        if (backend.host !== undefined) await openInitialWindow()
        if (backend.host !== undefined) updateJournal?.action('workspace-ready')
-@@ -874,7 +874,7 @@
+@@ -925,7 +928,7 @@
    const applicationIconPath = development ? join(app.getAppPath(), 'resources', 'icon-windows.png')
      : join(process.resourcesPath, 'icon.png')
    app.setAboutPanelOptions({
@@ -373,7 +373,7 @@
      applicationVersion: app.getVersion(),
      // The release has no separate build number; omit Electron's bundle version.
      version: '',
-@@ -885,6 +885,13 @@
+@@ -936,6 +939,13 @@
    // its standard menus and application hide commands declared explicitly.
    // Keep app.name stable: Electron derives its default userData directory from it.
    const darwin = process.platform === 'darwin'
@@ -382,12 +382,12 @@
 +    hooks: { beforeChange: () => backend.stop(), afterChange: () => reconcileBackend() },
 +    beforeInstall: async () => { await startup },
 +    afterInstall: () => navigateMain(applicationUrl),
-+    onInstallError: async (error) => { reportFatal(error, 'main') },
++    onInstallError: (error) => { reportFatal(error, 'main'); return Promise.resolve() },
 +  })
    const platformMenus = (): MenuItemConstructorOptions[] => darwin
      ? [shortcuts.fileMenu(currentDesktopLocale().messages), { role: 'editMenu' }, { role: 'windowMenu' }]
      : [{ role: 'editMenu' }]
-@@ -894,6 +901,9 @@
+@@ -945,6 +955,9 @@
        { role: 'unhide', label: currentDesktopLocale().messages.showAllApplications }, { type: 'separator' }]
      : []
    const applicationItems = (): MenuItemConstructorOptions[] => [
@@ -397,7 +397,7 @@
      // Windows has no system About panel; Electron's fallback is a plain
      // message box, so the shell shows its own dimmed dialog instead.
      process.platform === 'win32'
-@@ -1145,13 +1155,7 @@
+@@ -1201,13 +1214,7 @@
      locale = resolveDesktopStartupLocale(state.localePreference, systemLanguages)
      windowsLanguage = locale.id
      refreshApplicationMenu()
@@ -412,7 +412,7 @@
    }
    focusPrimaryWindow = () => {
      if (quitting) return
-@@ -1185,6 +1189,8 @@
+@@ -1241,6 +1248,8 @@
    const finishQuit = (): void => {
      quitting = true
      shuttingDown = true
@@ -423,19 +423,19 @@
      backgroundNotice?.dispose()
 --- a/apps/desktop/tsconfig.host.json
 +++ b/apps/desktop/tsconfig.host.json
-@@ -28,6 +28,9 @@
+@@ -27,6 +27,9 @@
+       "path": "../../packages/client/shortcuts/tsconfig.host.json"
      },
      {
-       "path": "../../packages/util/atomic-write"
++      "path": "../../packages/boot/plugin-manager"
 +    },
 +    {
-+      "path": "../../packages/boot/plugin-manager"
-     }
-   ],
-   "exclude": [
+       "path": "../../packages/util/atomic-write"
+     },
+     {
 --- a/apps/desktop/tsdown.config.ts
 +++ b/apps/desktop/tsdown.config.ts
-@@ -77,7 +77,7 @@
+@@ -90,7 +90,7 @@
      clean: false,
      deps: { neverBundle: ['electron'] },
    },
@@ -484,3 +484,23 @@
  } as const
  
  /** Public variable carrying the source commit embedded in client artifacts. */
+--- a/packages/bundle/web-app/cordis.patch.yml
++++ b/packages/bundle/web-app/cordis.patch.yml
+@@ -44,7 +44,7 @@
+ - insert:
+     - id: desktop-product-telemetry
+       name: '@deepseek-ai/dsh-host-product-telemetry-otel'
+-      disabled: !!js "ctx.get('profileContext')?.name !== 'desktop'"
++      disabled: true
+       config:
+         scheduledDelayMillis: 30000
+         timeoutMillis: 15000
+@@ -56,7 +56,7 @@
+ 
+     - id: product-analytics
+       name: '@deepseek-ai/dsh-client-product-analytics'
+-      disabled: !!js "ctx.get('profileContext')?.name !== 'desktop'"
++      disabled: true
+       config:
+         enabled: true
+         appVersion: !!js process.env.DSH_CLIENT_VERSION

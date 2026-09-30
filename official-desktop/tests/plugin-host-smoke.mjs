@@ -29,7 +29,7 @@ if (!childMode) {
   try {
     const child = spawn(process.execPath, [file, '--isolated', source, fixture, ...(withImagegen ? ['--imagegen'] : [])], {
       cwd: fixture,
-      env: {PATH: process.env.PATH ?? '', DSH_HOME: join(fixture, 'dsh-home'), LANG: 'en_US.UTF-8'},
+      env: {PATH: process.env.PATH ?? '', DSH_HOME: join(fixture, 'dsh-home'), DSH_TELEMETRY_DISABLED: '1', LANG: 'en_US.UTF-8'},
       stdio: 'inherit',
     });
     const watchdog = setTimeout(() => child.kill('SIGTERM'), 120000);
@@ -177,6 +177,10 @@ export function apply(ctx) {
     assert.equal(registration.id, pluginManifest.name);
     const client = registration.factory(() => { throw Error('Unexpected client external'); });
     assert.equal(typeof client.apply, 'function');
+    assert.equal(host.ctx.get('productAnalytics'), undefined);
+    assert.equal(host.ctx.get('productTelemetry'), undefined);
+    assert.equal(host.ctx.get('sessionTelemetry'), undefined);
+    console.log('PASS official analytics and session-feedback exporters are disabled in the IPZSK profile');
     console.log('PASS actual Cordis Host has authenticated loopback HTTP, correct data directory, IPZSK model catalog and official client bundle');
 
     if (imageManifest) {

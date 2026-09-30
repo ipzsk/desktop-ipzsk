@@ -2,7 +2,7 @@
 
 IPZSK Desktop Next is the official DeepSeek Harness Electron architecture with IPZSK account, model and plugin integrations. This directory owns the downstream overlay; the existing 2.x application and its pinned submodule remain separate.
 
-The current preview is `3.0.0-beta.3`, based on upstream `0.1.7-rc.2` at `477b4f420553e8a52c2fbccc464d7561b239c443`. The complete downstream dsh package family, private Host and Electron shell share the product version. Vendored libraries retain their upstream versions.
+The current preview is `3.0.0-beta.4`, based on upstream `0.2.0-rc.2` at `639ed015397290b3745d163aafe02ffee4aa3f84`. The complete downstream dsh package family, private Host and Electron shell share the product version. Vendored libraries retain their upstream versions.
 
 ## Runtime
 
@@ -11,6 +11,12 @@ The current preview is `3.0.0-beta.3`, based on upstream `0.1.7-rc.2` at `477b4f
 - The official Web plugin manager and the IPZSK market share profile package operations and their file lock. The IPZSK market re-fetches approved releases and checks archive identity, size, SHA-256 and desktop transport compatibility before using the official package lock and bundled pnpm.
 - Plugins remain independently installed profile dependencies. They are excluded from the immutable shared Host package set.
 - The preview uses `IPZSK Desktop Next` application data, separately from IPZSK Desktop 2.x. It does not migrate or rewrite existing sessions. Plugin job data lives outside the package profile so package operations and profile recovery do not replace it.
+
+## Account integration
+
+The sandboxed account window signs in through `https://api.ipzsk.com`, fetches the customer profile and desktop model authorization, then opens the official workspace. It supports encrypted session persistence, balance and usage, voucher redemption, and sign-out. Sign-out stops the Host and relaunches into login. Account credentials stay in private IPC and memory rather than plugin configuration.
+
+The official login-shell environment reader remains active for user tool paths and proxies while preserving the IPZSK data directory. Official Desktop product analytics and session-feedback reporting are disabled by default. Account, billing and model requests still use the IPZSK backend.
 
 ## Build
 

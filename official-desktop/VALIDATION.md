@@ -1,3 +1,21 @@
+# 3.0.0-beta.4 / Harness 0.2.0-rc.2 验证
+
+验证日期：2026-09-30。官方源码固定为 `639ed015397290b3745d163aafe02ffee4aa3f84`，产品版本为 `3.0.0-beta.4`，分支为 `codex/ipzsk-desktop-0.2.0-rc.2`。
+
+- `node scripts/run.mjs install`：固定 lockfile 安装通过。
+- `node scripts/run.mjs build`：完整官方构建通过，包含 Host/Client TypeScript、Electron 主进程与预加载、Web 客户端。
+- 官方 Vitest 的 IPZSK 账号、模型、市场和登录 Shell 环境测试：81 项通过。
+- 相邻上游宿主进程、项目管理、设置及插件包操作测试：153 项通过、1 项平台条件跳过。
+- `node --test tests/*.test.mjs`：13 项通过，覆盖私有启动 IPC、取消与断连、无效数据、签名环境隔离及打包配置。
+- `node scripts/build-plugins.mjs` 及作图插件 `scripts/smoke.mjs`：构建、类型检查和界面/路由回归通过。
+- `node tests/plugin-host-smoke.mjs --imagegen`：真实官方 Host 加载双插件、认证拒绝、模型目录、配置保存与凭据脱敏、模拟图片生成、Word→Excel 下载、超过 4 MiB PDF 分块上传及哈希校验通过；确认产品统计与会话反馈导出器没有加载，测试没有外部模型请求。
+- 官方 oxlint 对接入涉及的主进程、Host、CLI profile runner 及插件包操作文件检查通过。
+- IPZSK 公开 `/api/account/status` 接口响应正常，`password_login_ready` 为 `true`。该检查只证明后台公开状态，没有使用真实账户密码。
+
+本次未进行真实账号登录、付费模型调用、实际大文件压力测试、签名公证、Windows 构建、安装包发布或官网部署。以下为旧版本历史验证记录。
+
+---
+
 # 3.0.0-beta.3 / Harness 0.1.7-rc.2 验证
 
 升级基线：`477b4f420553e8a52c2fbccc464d7561b239c443`（2026-09-24 官方版本），产品版本 `3.0.0-beta.3`。本次使用合成数据和临时目录，不访问真实账户或付费模型。

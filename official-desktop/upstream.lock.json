@@ -1,9 +1,9 @@
 {
   "repository": "https://github.com/deepseek-ai/deepseek-harness",
-  "commit": "477b4f420553e8a52c2fbccc464d7561b239c443",
-  "sourceVersion": "0.1.7-rc.2",
-  "archiveSha256": "a6b78577dec0653bf336f6aa093c55dd93cb3350f220f91efde951b18c7eda83",
-  "productVersion": "3.0.0-beta.3",
+  "commit": "639ed015397290b3745d163aafe02ffee4aa3f84",
+  "sourceVersion": "0.2.0-rc.2",
+  "archiveSha256": "bbc09e888e1df3aa37be049abdb7720951e76442d21e5432365d87a465d628f1",
+  "productVersion": "3.0.0-beta.4",
   "productName": "IPZSK Desktop Next",
   "appId": "com.ipzsk.desktop.next"
 }

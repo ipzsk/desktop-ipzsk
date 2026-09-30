@@ -24,7 +24,7 @@ const ID = /^[0-9a-f-]{36}$/iu
 const PACKAGE = /^(?:@[a-z0-9-]+\/)?[a-z0-9][a-z0-9._-]*$/u
 const BLOCKED = new Set(['dsh-plugin-desktop', 'dsh-plugin-desktop-beta', 'dsh-community-market', 'dsh-ipzsk-market', 'dshmarket'])
 /** Upstream API capability baseline; independent of the IPZSK product release number. */
-export const IPZSK_DESKTOP_API_VERSION = '0.1.7-rc.2'
+export const IPZSK_DESKTOP_API_VERSION = '0.2.0-rc.2'
 
 export type PluginInstallState = 'install' | 'update' | 'current' | 'ahead'
 /** Compare release precedence, including prereleases, in the trusted main process. */

@@ -12,6 +12,8 @@ Login completes in a dedicated sandboxed account window. Electron checks the ori
 
 The market renderer sends only a plugin ID and approved release ID. Electron obtains current account-authorized metadata, verifies the archive and installs it through the same official package lock used by the native manager. Reviewed archives are addressed by SHA-256 and cannot be replaced through a generic npm update. The original official policy of retaining partial package state after failure remains in effect; this migration does not claim transactional rollback.
 
+The shell preserves the upstream login-shell environment reader. The IPZSK deployment disables upstream product analytics rows and sets the official session telemetry opt-out before the Host starts.
+
 ## Release and data
 
 The product release gives all first-party dsh packages, the private Host and the Electron shell the same version. A separate source pin records the upstream API baseline. A plugin compatibility decision uses that API baseline, not the numerically higher IPZSK product version.
