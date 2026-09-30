@@ -14,7 +14,7 @@ The current preview is `3.0.0-beta.4`, based on upstream `0.2.0-rc.2` at `639ed0
 
 ## Account integration
 
-The sandboxed account window signs in through `https://api.ipzsk.com`, fetches the customer profile and desktop model authorization, then opens the official workspace. It supports encrypted session persistence, balance and usage, voucher redemption, and sign-out. Sign-out stops the Host and relaunches into login. Account credentials stay in private IPC and memory rather than plugin configuration.
+The sandboxed account window signs in through `https://api.ipzsk.com`, fetches the customer profile and desktop model authorization, then opens the official workspace. It supports encrypted session persistence, balance and usage, voucher redemption, and sign-out. Sign-out stops the Host and relaunches into login. The default model API is `https://api.ipzsk.com/v1` and uses the authorization returned by login; no API key entry is required. The IPZSK provider and default model are composed before any Host plugin starts. A still-authorized saved IPZSK model is retained. Account credentials stay in private IPC and memory rather than plugin configuration.
 
 The official login-shell environment reader remains active for user tool paths and proxies while preserving the IPZSK data directory. Official Desktop product analytics and session-feedback reporting are disabled by default. Account, billing and model requests still use the IPZSK backend.
 

@@ -66,7 +66,7 @@ async function smoke(fixture) {
   };
 
   const importBuilt = relative => import(pathToFileURL(join(source, relative)).href);
-  const [{runProfile}, {loadProfileDirectory, loadLayeredEnv}, {parseIpzskHostBootstrap, withIpzskEnvironment, ipzskPluginPatches, installIpzskPluginConfig, applyIpzskModelSettings}] = await Promise.all([
+  const [{runProfile}, {loadProfileDirectory, loadLayeredEnv}, {parseIpzskHostBootstrap, withIpzskEnvironment, ipzskModelPatches, ipzskPluginPatches, installIpzskPluginConfig, applyIpzskModelSettings}] = await Promise.all([
     importBuilt('apps/cli/lib/profile-boot.js'),
     importBuilt('packages/boot/app-boot/lib/index.js'),
     importBuilt('apps/desktop-host/lib/types/ipzsk-bootstrap.js'),
@@ -128,10 +128,11 @@ async function smoke(fixture) {
   await writeFile(join(probeDir, 'bundle.yml'), '- insert:\n    - id: ipzsk-plugin-host-probe\n      name: ipzsk-plugin-host-probe\n');
   await writeFile(join(probeDir, 'index.js'), `
 import { Context } from '@deepseek-ai/cordis';
-export const inject = ['connection', 'llm', 'clientModules', 'ipzskDesktop'];
+export const inject = ['connection', 'llm', 'clientModules', 'ipzskDesktop', 'agentDefaultModel'];
 export function apply(ctx) {
   if (!(ctx instanceof Context)) throw Error('Duplicate Cordis runtime');
-  ctx.connection.fetch.register({path:'/api/ipzsk-smoke/health',methods:['GET'],requestBody:'buffered',fetch:async () => Response.json({webServer:ctx.get('webServer')!==undefined,dataDir:ctx.get('ipzskDesktop').dataDir,graph:ctx.clientModules.graph(),providers:ctx.llm.listProviders().map(p=>p.id)})});
+  const initialSelection = ctx.agentDefaultModel.currentSelection();
+  ctx.connection.fetch.register({path:'/api/ipzsk-smoke/health',methods:['GET'],requestBody:'buffered',fetch:async () => Response.json({initialSelection,webServer:ctx.get('webServer')!==undefined,dataDir:ctx.get('ipzskDesktop').dataDir,graph:ctx.clientModules.graph(),providers:ctx.llm.listProviders().map(p=>p.id)})});
 }
 `);
   await json(join(profile, 'package.json'), {
@@ -142,6 +143,7 @@ export function apply(ctx) {
   const bootstrap = parseIpzskHostBootstrap({version: 1, token: 'ipz_' + 's'.repeat(43), default_model: 'smoke-local-only', models: [{id: 'smoke-local-only', name: 'Smoke fixture; never called', contextWindow: 8192, maxTokens: 1024}], image_models: [], plugin_configs: imageManifest ? [{plugin_id: '00000000-0000-4000-8000-000000000001', credential: imageCredential, package: imageManifest.name, id: 'imagegen', config: { channels: [{id: 'ipzsk', preset: '', name: 'IPZSK', apiUrl: 'https://api.ipzsk.com/v1', models: [{alias: 'smoke-image', id: 'gpt-image-2'}]}], channelSecrets: {}, defaultChannelId: 'ipzsk' }, credential_paths: [['channelSecrets', 'ipzsk']]}] : []});
   const installAnchor = join(runtime, 'node_modules/@deepseek-ai/dsh/package.json');
   const loaded = loadProfileDirectory('dsh', profile, installAnchor);
+  loaded.patches.push(...ipzskModelPatches(bootstrap, [...loaded.layers.flatMap(layer => layer.patches), ...loaded.patches]));
   const host = await runProfile({ profile: 'desktop', resolvedProfile: { profile: loaded, installAnchor }, patchFiles: [],
     args: ['--no-open', '--port', '0'], environment: withIpzskEnvironment(loadLayeredEnv('dsh'), bootstrap),
     beforeBoot: ctx => {
@@ -163,6 +165,7 @@ export function apply(ctx) {
   try {
     const health = await (await fetchHost('/api/ipzsk-smoke/health')).json();
     assert.equal(health.webServer, true);
+    assert.deepEqual(health.initialSelection, {provider: 'ipzsk', model: bootstrap.default_model});
     assert.equal(health.dataDir, join(profile, 'data'));
     assert.ok(health.providers.includes('ipzsk'));
     const entry = health.graph.entries.find(row => row.id === pluginManifest.name);

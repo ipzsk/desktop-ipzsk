@@ -112,11 +112,19 @@ function provider(bootstrap: IpzskHostBootstrap) {
   }
 }
 
-/** Existing official provider and default-model rows receive credential-free config. */
-export function ipzskModelPatches(bootstrap: IpzskHostBootstrap): PatchOptions[] {
+/** Configure the login-owned API before plugins start; retain a valid saved IPZSK selection. */
+export function ipzskModelPatches(bootstrap: IpzskHostBootstrap, composition: readonly PatchOptions[] = []): PatchOptions[] {
+  const rows = composeEntries([[...composition]])
+  const previous: unknown = rows.find(row => row.id === 'llm-pi-ai')?.config
+  const config = isRecord(previous) ? previous : {}
+  const providers = isRecord(config.providers) ? config.providers : {}
+  const selection: unknown = rows.find(row => row.id === 'agent-default-model')?.config
+  const selected = isRecord(selection) && selection.provider === 'ipzsk'
+    && bootstrap.models.some(model => model.id === selection.model)
+    ? selection : { provider: 'ipzsk', model: bootstrap.default_model }
   return [
-    { id: 'llm-pi-ai', config: { providers: { ipzsk: provider(bootstrap) } } },
-    { id: 'agent-default-model', config: { provider: 'ipzsk', model: bootstrap.default_model } },
+    { id: 'llm-pi-ai', config: { ...config, providers: { ...providers, ipzsk: provider(bootstrap) } } },
+    { id: 'agent-default-model', config: selected },
   ]
 }
 

@@ -1,3 +1,12 @@
+## 默认 IPZSK API 启动修复（2026-09-30）
+
+将账号模型配置提前到 Host 的 profile 组装阶段。首次插件初始化即读取 IPZSK 默认模型；保存的 IPZSK 模型仍获授权时保持选择，旧地址由账号渠道配置覆盖，密钥保持仅在内存中使用。
+
+- 负向验证：新增真实 Host 检查在修复前捕获到初始 `deepseek-official / deepseek-flash`，修复后通过。
+- 定向账号授权、启动数据及模型流式请求测试 31 项通过；验证从默认模型选择发出的请求使用 `https://api.ipzsk.com/v1/chat/completions` 与登录授权。
+- `build:lib:host`、相关源码与测试 oxlint、双插件真实 Host 冒烟及 `git diff --check` 通过。
+- 未调用真实付费模型，未签名或发布安装包。
+
 # 3.0.0-beta.4 / Harness 0.2.0-rc.2 验证
 
 验证日期：2026-09-30。官方源码固定为 `639ed015397290b3745d163aafe02ffee4aa3f84`，产品版本为 `3.0.0-beta.4`，分支为 `codex/ipzsk-desktop-0.2.0-rc.2`。

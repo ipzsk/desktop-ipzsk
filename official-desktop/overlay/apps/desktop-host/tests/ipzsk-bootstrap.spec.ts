@@ -22,7 +22,7 @@ describe('private IPZSK Host bootstrap', () => {
     { models: [{ id: 'backend-model', name: 'Bad', contextWindow: 0, maxTokens: 1 }] },
     { models: [fixture().models[0], fixture().models[0]] },
     { image_models: [{ id: 'image', name: 'Image', sizes: ['1x1'], default_size: 'missing' }] },
-  ])('refuses malformed bootstrap %# without echoing credentials', patch => {
+  ])('refuses malformed bootstrap %# without echoing credentials', (patch) => {
     expect(() => parseIpzskHostBootstrap({ ...fixture(), ...patch })).toThrow('启动数据无效')
   })
 
@@ -31,7 +31,7 @@ describe('private IPZSK Host bootstrap', () => {
       package: 'dsh-plugin', id: 'plugin', config: {}, credential_paths: [['apiKey']] }
     expect(parseIpzskHostBootstrap({ ...fixture(), plugin_configs: [plugin] }).plugin_configs[0]?.package).toBe('dsh-plugin')
     expect(() => parseIpzskHostBootstrap({ ...fixture(), plugin_configs: [{ ...plugin, credential_paths: [['__proto__']] }] })).toThrow('启动数据无效')
-    expect(() => parseIpzskHostBootstrap({ ...fixture(), plugin_configs: [{ ...plugin, config: JSON.parse('{"constructor":{}}') }] })).toThrow('启动数据无效')
+    expect(() => parseIpzskHostBootstrap({ ...fixture(), plugin_configs: [{ ...plugin, config: { constructor: {} } }] })).toThrow('启动数据无效')
   })
 
   it('makes the model credential available only through the private launch environment', () => {
@@ -48,6 +48,30 @@ describe('private IPZSK Host bootstrap', () => {
       { id: 'llm-pi-ai', config: { providers: { ipzsk: { baseURL: 'https://api.ipzsk.com/v1', api: 'openai-completions' } } } },
       { id: 'agent-default-model', config: { provider: 'ipzsk', model: 'backend-model' } },
     ])
+  })
+
+  it.each(['deepseek-official', 'ipzsk'])('replaces stale %s defaults and an edited IPZSK endpoint before boot', (provider) => {
+    const bootstrap = parseIpzskHostBootstrap(fixture())
+    const composition = [{ insert: [
+      { id: 'llm-pi-ai', name: '@deepseek-ai/dsh-llm-pi-ai', config: { providers: { custom: { baseURL: 'https://example.invalid/v1' },
+        ipzsk: { baseURL: 'https://old.invalid/v1', apiKeyEnv: 'OLD_KEY' } } } },
+      { id: 'agent-default-model', name: '@deepseek-ai/dsh-agent-default-model', config: { provider, model: 'removed-model' } },
+    ] }]
+    const patches = ipzskModelPatches(bootstrap, composition)
+    expect(patches).toMatchObject([
+      { config: { providers: { custom: { baseURL: 'https://example.invalid/v1' },
+        ipzsk: { baseURL: 'https://api.ipzsk.com/v1', apiKeyEnv: 'IPZSK_DESKTOP_API_KEY' } } } },
+      { config: { provider: 'ipzsk', model: bootstrap.default_model } },
+    ])
+    expect(JSON.stringify(patches)).not.toContain(bootstrap.token)
+    expect(JSON.stringify(composition)).toContain('https://old.invalid/v1')
+  })
+
+  it('retains an authorized IPZSK model and effort selected by the user', () => {
+    const bootstrap = parseIpzskHostBootstrap(fixture())
+    const selected = { provider: 'ipzsk', model: bootstrap.default_model, reasoningEffort: 'low' }
+    expect(ipzskModelPatches(bootstrap, [{ insert: [{ id: 'agent-default-model', name: '@deepseek-ai/dsh-agent-default-model', config: selected }] }])[1])
+      .toEqual({ id: 'agent-default-model', config: selected })
   })
 
   it('adds runtime plugin credentials only to the matching active installed bundle row', () => {
