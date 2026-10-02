@@ -268,7 +268,7 @@
 +import { IpzskAccountController } from './ipzsk-account.ts'
 +import { createIpzskMarket } from './ipzsk-market.ts'
 +import { IpzskPluginInstaller } from './ipzsk-plugin-installer.ts'
-+import { prepareBundledPreviewProfile } from './ipzsk-bundled-plugin.ts'
++import { IPZSK_BUILD_INFO } from './ipzsk-build-info.ts'
  import { join } from 'node:path'
  import { fileURLToPath } from 'node:url'
  import {
@@ -353,29 +353,29 @@
          }, (enabled) => { analyticsEnabled = enabled })
        },
        stop: async () => {
-@@ -567,8 +566,12 @@
+@@ -567,8 +566,9 @@
    const reconcileBackend = (): Promise<void> => {
      startup ??= (async () => {
        await navigateMain(applicationUrl)
 +      if (!await account.ensureSignedIn()) { quitWithoutConfirmation(); return }
        await backend.start(async () => {
 -        await Promise.all([manager.applyRelease(), prepareHostEnvironment()])
-+        await Promise.all([
-+          development ? manager.applyRelease() : prepareBundledPreviewProfile(installer, process.resourcesPath),
-+          prepareHostEnvironment(),
-+        ])
++        await Promise.all([installer.applyRelease(), prepareHostEnvironment()])
        })
        if (backend.host !== undefined) await openInitialWindow()
        if (backend.host !== undefined) updateJournal?.action('workspace-ready')
-@@ -925,7 +928,7 @@
+@@ -925,8 +929,8 @@
    const applicationIconPath = development ? join(app.getAppPath(), 'resources', 'icon-windows.png')
      : join(process.resourcesPath, 'icon.png')
    app.setAboutPanelOptions({
 -    applicationName: 'DeepSeek Harness',
 +    applicationName: 'IPZSK Desktop Next',
      applicationVersion: app.getVersion(),
-     // The release has no separate build number; omit Electron's bundle version.
-     version: '',
+-    // The release has no separate build number; omit Electron's bundle version.
+-    version: '',
++    version: `DeepSeek Harness ${IPZSK_BUILD_INFO.sourceVersion}`,
++    credits: `官方基线提交 ${IPZSK_BUILD_INFO.commit.slice(0, 12)}`,
+     copyright: '',
 @@ -936,6 +939,13 @@
    // its standard menus and application hide commands declared explicitly.
    // Keep app.name stable: Electron derives its default userData directory from it.

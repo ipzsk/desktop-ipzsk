@@ -4,6 +4,8 @@ IPZSK Desktop Next is the official DeepSeek Harness Electron architecture with I
 
 The current preview is `3.0.0-beta.4`, based on upstream `0.2.0-rc.2` at `639ed015397290b3745d163aafe02ffee4aa3f84`. The complete downstream dsh package family, private Host and Electron shell share the product version. Vendored libraries retain their upstream versions.
 
+When upgrading an existing installation, the client retains the pnpm store recorded by its installed plugin dependencies in the profile workspace settings. The plugin market continues to use that setting; explicit existing settings, global pnpm configuration, and task data remain unchanged. Desktop packages contain no first-party plugin archives; plugins are released separately and installed through the market.
+
 ## Runtime
 
 - Electron starts its own Node-mode child process. The official Web Host listens on an OS-assigned loopback port with authenticated HTTP/WebSocket; the packaged renderer uses `dsh-app://app/`. The runtime is packaged inside ASAR, with native libraries and Office dependencies unpacked by the official rules.

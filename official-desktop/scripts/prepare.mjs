@@ -48,6 +48,8 @@ export function prepare() {
     if (manifest.version === pin.sourceVersion) writeFileSync(absolute, text.replace(`"version": "${pin.sourceVersion}"`, `"version": "${pin.productVersion}"`))
   }
   writeFileSync(join(source, 'apps/desktop/ipzsk-build.json'), JSON.stringify(pin, null, 2) + '\n')
+  writeFileSync(join(source, 'apps/desktop/src/ipzsk-build-info.ts'),
+    `/** Generated from upstream.lock.json; do not edit. */\nexport const IPZSK_BUILD_INFO = ${JSON.stringify(pin, null, 2)} as const\n`)
   writeFileSync(marker, pin.commit + '\n')
   console.log(`Prepared ${pin.productName} ${pin.productVersion} from ${pin.commit.slice(0, 12)}`)
 }

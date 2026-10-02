@@ -1,7 +1,8 @@
 /** Install reviewed IPZSK archives through the upstream shared profile package operations. */
 import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { delimiter, dirname, join } from 'node:path'
-import { withFileLock } from '@deepseek-ai/dsh-atomic-write'
+import { load, JSON_SCHEMA } from 'js-yaml'
+import { withFileLock, writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { readProfilePlugins } from '@deepseek-ai/dsh-app-boot'
 import { runProfilePnpm } from '@deepseek-ai/dsh-plugin-manager/operations'
 import type { DesktopProjectManager } from './project-manager.ts'
@@ -25,7 +26,21 @@ export class IpzskPluginInstaller {
     this.paths = { root: dirname(dirname(manager.paths.profile)), profile: manager.paths.profile }
   }
 
-  applyRelease(): Promise<void> { return this.manager.applyRelease() }
+  /** Retain the store used by existing installations for every profile package operation. */
+  async applyRelease(): Promise<void> {
+    await this.manager.applyRelease()
+    await withFileLock(join(this.paths.profile, 'package.json'), async () => {
+      const modulesPath = join(this.paths.profile, 'node_modules/.modules.yaml')
+      if (!existsSync(modulesPath)) return
+      const modules = load(readFileSync(modulesPath, 'utf8'), { schema: JSON_SCHEMA }) as { storeDir?: unknown } | undefined
+      if (typeof modules?.storeDir !== 'string' || modules.storeDir.length === 0) return
+      const workspacePath = join(this.paths.profile, 'pnpm-workspace.yaml')
+      const text = readFileSync(workspacePath, 'utf8')
+      const workspace = load(text, { schema: JSON_SCHEMA }) as { storeDir?: unknown } | undefined
+      if (workspace?.storeDir !== undefined) return
+      await writeFileAtomic(workspacePath, `${text.trimEnd()}\nstoreDir: ${JSON.stringify(modules.storeDir)}\n`, { mode: 0o600 })
+    }, { waitMs: 0 })
+  }
 
   listPlugins(): { name: string; version: string; enabled: boolean }[] {
     if (!existsSync(join(this.paths.profile, 'package.json'))) return []

@@ -1,10 +1,9 @@
 /** Package the pinned desktop; publishing and automatic updates remain disabled. */
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { prepare, source, root, pin } from './prepare.mjs'
-import { buildPlugins } from './build-plugins.mjs'
 import { signingBuildEnvironment } from './signed-config.mjs'
 
 const packagingEnvironment = { ...process.env }
@@ -65,7 +64,7 @@ if (signed) {
 // Reuse the official materialization and integrity checks in a separately named
 // local-preview command. The original release/signing entry point stays intact.
 const original = readFileSync(join(appRoot, 'scripts/prepare-dsh.ts'), 'utf8')
-const signBlock = "    if (process.platform === 'darwin') {\n      await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'sign:dsh-native', () => signMacOSRuntime(DSH_OUTPUT_ROOT, resolveDesktopAppId(process.env), resolveMacOSSigningEnvironment(process.env), join(BUILD_PATHS.root, 'signature-cache')))\n      await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'sign:primary-native', () => signMacOSRuntime(join(RUNTIME_ROOT, 'primary-runtime'), resolveDesktopAppId(process.env), resolveMacOSSigningEnvironment(process.env), join(BUILD_PATHS.root, 'signature-cache')))\n    }"
+const signBlock = "    if (process.platform === 'darwin') {\n      await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'sign:dsh-native', () => signMacOSRuntime(DSH_OUTPUT_ROOT, resolveDesktopAppId(process.env), resolveMacOSSigningEnvironment(process.env), target.arch, join(BUILD_PATHS.root, 'signature-cache')))\n      await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'sign:primary-native', () => signMacOSRuntime(join(RUNTIME_ROOT, 'primary-runtime'), resolveDesktopAppId(process.env), resolveMacOSSigningEnvironment(process.env), target.arch, join(BUILD_PATHS.root, 'signature-cache')))\n    }"
 if (original.split(signBlock).length !== 2) throw new Error('Upstream signing step changed; review the preview preparation command')
 const storeDeclaration = "const STORE_ROOT = join(BUILD_ROOT, 'store')"
 if (original.split(storeDeclaration).length !== 2) throw new Error('Upstream package cache changed; review the preview preparation command')
@@ -78,32 +77,6 @@ await run(['exec', 'tsx', 'scripts/prepare-ipzsk-preview.ts'], appRoot)
 }
 }
 if (process.argv.includes('--prepare-runtime-only')) process.exit(0)
-
-await buildPlugins()
-const bundled = join(root, '.build/bundled-plugins')
-mkdirSync(bundled, { recursive: true })
-const pluginSources = [
-  { directory: 'doc-to-excel', name: 'dsh-doc-to-excel', file: 'dsh-doc-to-excel.tgz' },
-  { directory: 'imagegen', name: '@dickpy/dsh-imagegen', file: 'dsh-imagegen.tgz' },
-]
-const plugins = []
-for (const plugin of pluginSources) {
-  const directory = join(root, 'plugins', plugin.directory)
-  if (!existsSync(join(directory, 'package.json'))) continue
-  const manifest = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8'))
-  if (manifest.name !== plugin.name || manifest.dsh?.desktop?.transport !== 'connection') throw new Error(`Preview plugin is not ready: ${plugin.name}`)
-  await new Promise((resolve, reject) => {
-    const child = spawn('npm', ['pack', '--ignore-scripts', '--pack-destination', bundled], { cwd: directory, env: signingBuildEnvironment(env), stdio: 'inherit' })
-    child.once('error', reject)
-    child.once('exit', code => code === 0 ? resolve() : reject(new Error(`Plugin pack failed: ${plugin.name}`)))
-  })
-  const archive = join(bundled, `${plugin.name.replace('@', '').replace('/', '-')}-${manifest.version}.tgz`)
-  const bytes = readFileSync(archive)
-  copyFileSync(archive, join(bundled, plugin.file))
-  plugins.push({ packageName: plugin.name, version: manifest.version, file: plugin.file,
-    sha256: createHash('sha256').update(bytes).digest('hex'), sizeBytes: bytes.length })
-}
-writeFileSync(join(bundled, 'manifest.json'), JSON.stringify({ schemaVersion: 1, plugins }, null, 2) + '\n')
 
 let config = {
   appId: pin.appId, productName: pin.productName,
@@ -119,7 +92,6 @@ let config = {
     { from: join(target, 'dsh/node_modules'), to: 'dsh/node_modules' }],
   extraResources: [
     { from: join(target, 'runtime'), to: 'runtime' },
-    { from: bundled, to: 'plugins', filter: ['manifest.json', 'dsh-doc-to-excel.tgz', 'dsh-imagegen.tgz'] },
   ],
   mac: { category: 'public.app-category.productivity', icon: join(root, 'assets/app-icon.png'), identity: null, notarize: false, target: ['dmg'], signIgnore: ['/Contents/Resources/app\\.asar\\.unpacked/dsh(?:/|$)', '/Contents/Resources/runtime/primary-runtime(?:/|$)'] },
   dmg: { sign: false, writeUpdateInfo: false },
@@ -131,18 +103,16 @@ const configPath = signed ? 'electron-builder.ipzsk-signed.mjs' : 'electron-buil
 const factory = signed ? 'createSignedConfig' : 'createPreviewConfig'
 writeFileSync(join(appRoot, configPath), `import { ${factory} } from ${JSON.stringify(new URL('./signed-config.mjs', import.meta.url).href)};\nexport default await ${factory}(${JSON.stringify(config)}, ${JSON.stringify(appRoot)}, process.env);\n`)
 await run(['exec', 'electron-builder', '--config', configPath, '--mac', '--arm64', '--publish', 'never'], appRoot, signed)
-await run(['exec', 'tsx', '-e',
-  "import { readDesktopRuntime } from './apps/desktop/src/runtime-tree.ts'; import { smokePreparedRuntime } from './apps/desktop/scripts/smoke-prepared-runtime.ts'; void smokePreparedRuntime(process.argv[1], process.argv[2], process.argv[3], readDesktopRuntime(process.argv[4]));",
+await run(['exec', 'node', '--import', 'tsx', '--input-type=module', '-e',
+  "import { readDesktopRuntime } from './apps/desktop/src/runtime-tree.ts'; import { smokePreparedRuntime } from './apps/desktop/scripts/smoke-prepared-runtime.ts'; await smokePreparedRuntime(process.argv[1], process.argv[2], process.argv[3], readDesktopRuntime(process.argv[4]));",
   join(artifacts, 'mac-arm64', `${pin.productName}.app`, 'Contents/Resources/app.asar/dsh'),
   join(artifacts, 'mac-arm64', `${pin.productName}.app`, 'Contents/MacOS', pin.productName),
   join(artifacts, 'mac-arm64', `${pin.productName}.app`, 'Contents/Resources/runtime'), join(target, 'dsh')])
-await run(['exec', 'node', join(root, 'tests/packaged-plugin-startup.mjs'),
-  join(artifacts, 'mac-arm64', `${pin.productName}.app`, 'Contents/Resources')])
 if (signed) {
   const { verifyMacOSNotarizedApplication } = await import(new URL('../.build/upstream/apps/desktop/scripts/verify-macos-signature.mjs', import.meta.url))
   const { resolveMacOSSigningEnvironment } = await import(new URL('../.build/upstream/apps/desktop/scripts/desktop-release-environment.mjs', import.meta.url))
   verifyMacOSNotarizedApplication(join(artifacts, 'mac-arm64', `${pin.productName}.app`), resolveMacOSSigningEnvironment(env))
   const dmg = `IPZSK.Desktop.Next-${pin.productVersion}-arm64.dmg`
   writeFileSync(join(artifacts, 'SHA256SUMS.txt'), `${createHash('sha256').update(readFileSync(join(artifacts, dmg))).digest('hex')}  ${dmg}\n`)
-  writeFileSync(join(artifacts, 'SIGNED.txt'), `${pin.productName} ${pin.productVersion}\nDeveloper ID signed, Apple notarized and stapled; Gatekeeper and packaged plugin startup verified.\nUpstream: ${pin.commit}\nWebsite publishing and automatic updates remain disabled.\n`)
+  writeFileSync(join(artifacts, 'SIGNED.txt'), `${pin.productName} ${pin.productVersion}\nDeveloper ID signed, Apple notarized and stapled; Gatekeeper and packaged runtime verified.\nUpstream: ${pin.commit}\nWebsite publishing and automatic updates remain disabled.\n`)
 } else writeFileSync(join(artifacts, 'PREVIEW.txt'), `${pin.productName} ${pin.productVersion}\nLocal unsigned preview. Automatic publishing and updating are disabled.\nUpstream: ${pin.commit}\n`)

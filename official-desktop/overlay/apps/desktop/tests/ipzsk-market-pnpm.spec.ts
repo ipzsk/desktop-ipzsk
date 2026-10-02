@@ -1,3 +1,5 @@
+import { execFileSync } from 'node:child_process'
+import { load, JSON_SCHEMA } from 'js-yaml'
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -82,3 +84,28 @@ it('preserves profile data on pnpm failure and does not claim success', async ()
   expect(manager.listPlugins()).toEqual([])
   await expect(withFileLock(join(manager.paths.profile, 'package.json'), async () => 'released', { waitMs: 0 })).resolves.toBe('released')
 })
+
+it('retains the installed pnpm store when upgrading an existing desktop profile', async () => {
+  const { root, manager, hooks, plugin, bytes } = setup()
+  await manager.applyRelease()
+  const old = marketFixture({ version: '0.2.1' })
+  const archive = join(root, 'old-plugin.tgz')
+  writeFileSync(archive, old.bytes)
+  const legacyStore = join(manager.paths.root, 'desktop/pnpm/store')
+  execFileSync(process.execPath, [join(import.meta.dirname, '../node_modules/pnpm/bin/pnpm.mjs'),
+    'add', archive, '--store-dir', legacyStore, '--ignore-scripts'], {
+    cwd: manager.paths.profile, env: { PATH: process.env.PATH }, stdio: 'pipe', timeout: 30_000,
+  })
+  const installed = load(readFileSync(join(manager.paths.profile, 'node_modules/.modules.yaml'), 'utf8'), { schema: JSON_SCHEMA }) as { storeDir: string }
+  const job = join(manager.paths.profile, 'document-job.txt')
+  writeFileSync(job, 'preserve existing work')
+  await manager.applyRelease()
+  await manager.installApproved(plugin, bytes, hooks)
+  expect(manager.listPlugins()).toEqual([{ name: plugin.package_name, version: plugin.version, enabled: false }])
+  const workspacePath = join(manager.paths.profile, 'pnpm-workspace.yaml')
+  const workspace = readFileSync(workspacePath, 'utf8')
+  expect((load(workspace, { schema: JSON_SCHEMA }) as { storeDir: string }).storeDir).toBe(installed.storeDir)
+  await manager.applyRelease()
+  expect(readFileSync(workspacePath, 'utf8')).toBe(workspace)
+  expect(readFileSync(job, 'utf8')).toBe('preserve existing work')
+}, 30_000)
