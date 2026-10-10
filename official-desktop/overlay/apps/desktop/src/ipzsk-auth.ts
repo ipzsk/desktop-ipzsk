@@ -123,6 +123,7 @@ export class IpzskAuth {
   }
 
   async pluginMarket(): Promise<unknown> { return this.api('/api/me/plugin-market') }
+  async commissions(): Promise<unknown> { return this.api('/api/me/commissions') }
 
   models(): IpzskModels {
     if (!this.modelSettings) throw new Error('模型服务尚未连接，请重新登录。')

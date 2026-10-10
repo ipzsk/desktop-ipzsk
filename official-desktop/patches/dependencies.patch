@@ -10,13 +10,16 @@
        '@deepseek-ai/dsh-home-paths':
          specifier: workspace:*
          version: link:../../packages/util/home-paths
-@@ -736,6 +739,12 @@
+@@ -736,6 +739,15 @@
          specifier: ^3.1.0
          version: 3.1.1
      devDependencies:
 +      '@deepseek-ai/dsh-launch-environment':
 +        specifier: workspace:*
 +        version: link:../../packages/util/launch-environment
++      '@deepseek-ai/dsh-llm':
++        specifier: workspace:*
++        version: link:../../packages/llm/llm
 +      '@deepseek-ai/dsh-settings':
 +        specifier: workspace:*
 +        version: link:../../packages/settings/settings

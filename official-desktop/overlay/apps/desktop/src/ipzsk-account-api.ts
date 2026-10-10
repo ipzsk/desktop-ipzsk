@@ -22,7 +22,7 @@ export interface IpzskAccountBill {
   readonly usage: { readonly page: number; readonly count: number; readonly page_size: number; readonly rows: IpzskBillingRow[] }
 }
 
-export type IpzskAccountRequest = { readonly type: 'state' | 'signOut' | 'accountSite' }
+export type IpzskAccountRequest = { readonly type: 'state' | 'signOut' | 'accountSite' | 'commissions' | 'earningsSite' }
   | { readonly type: 'signIn'; readonly email: string; readonly password: string; readonly remember: boolean }
   | { readonly type: 'billing'; readonly page: number }
   | { readonly type: 'redeem'; readonly code: string }
@@ -32,7 +32,7 @@ export type IpzskAccountResult = { readonly ok: true; readonly value: unknown } 
 export function parseIpzskAccountRequest(value: unknown): IpzskAccountRequest {
   const input = record(value)
   const keys = Object.keys(input).sort().join(',')
-  if (keys === 'type' && ['state', 'signOut', 'accountSite'].includes(String(input.type))) return input as IpzskAccountRequest
+  if (keys === 'type' && ['state', 'signOut', 'accountSite', 'commissions', 'earningsSite'].includes(String(input.type))) return input as IpzskAccountRequest
   if (input.type === 'signIn' && keys === 'email,password,remember,type'
     && typeof input.email === 'string' && input.email.length <= 254
     && typeof input.password === 'string' && input.password.length > 0 && input.password.length <= 128

@@ -1,0 +1,37 @@
+--- a/packages/skill/skill/src/index.ts
++++ b/packages/skill/skill/src/index.ts
+@@ -295,4 +295,5 @@
+      */
+     'skills/change'(): void
++    'skills/loaded'(skill: SkillDefinition, scope: ScopeKey | undefined): void
+   }
+ }
+@@ -515,2 +516,3 @@
++    this.ctx.emit('skills/loaded', definition, options.scope)
+     return definition
+   }
+--- a/packages/llm/llm/src/index.ts
++++ b/packages/llm/llm/src/index.ts
+@@ -74,5 +74,6 @@
+      */
+     'llm/stream'(this: LlmRuntime, options: GenerateOptions, next: () => AsyncIterable<StreamChunk>): AsyncIterable<StreamChunk>
++    'llm/request-headers'(options: GenerateOptions, next: () => Promise<Record<string, string>>): Promise<Record<string, string>>
+ 
+   }
+ }
+--- a/packages/llm/llm-pi-ai/src/adapter.ts
++++ b/packages/llm/llm-pi-ai/src/adapter.ts
+@@ -97,2 +97,3 @@
+   resolveAttachments?: () => AttachmentStore | undefined
++  resolveRequestHeaders?: (options: GenerateOptions) => Promise<Record<string, string>>
+   /** Bridge one attachment reference into the current model-tool execution world. */
+@@ -388,2 +389,2 @@
+-        headers: requestHeaders(profile.headers),
++        headers: requestHeaders({ ...profile.headers, ...await this.config.resolveRequestHeaders?.(options) }),
+       })
+--- a/packages/llm/llm-pi-ai/src/index.ts
++++ b/packages/llm/llm-pi-ai/src/index.ts
+@@ -215,2 +215,3 @@
+     auth,
++    resolveRequestHeaders: options => ctx.waterfall('llm/request-headers', options, () => Promise.resolve({})),
+     resolveAttachments: () => ctx.get('attachments'),

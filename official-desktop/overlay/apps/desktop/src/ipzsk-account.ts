@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { IpzskAuth, type IpzskCustomer, type IpzskDesktopBootstrap } from './ipzsk-auth.ts'
 import { ipzskSessionStore } from './ipzsk-session-store.ts'
+import { parseIpzskCommissions } from './ipzsk-commissions.ts'
 import {
   IPZSK_ACCOUNT_IPC, parseIpzskAccountBill, parseIpzskAccountRequest, parseIpzskRedemption,
   type IpzskAccountResult, type IpzskAccountState,
@@ -146,6 +147,15 @@ export class IpzskAccountController {
     if (request.type === 'accountSite') {
       await shell.openExternal('https://www.ipzsk.com/account')
       return null
+    }
+    if (request.type === 'earningsSite') {
+      if (!this.customer) throw new Error('请先登录 IPZSK。')
+      await shell.openExternal('https://www.ipzsk.com/#wallet')
+      return null
+    }
+    if (request.type === 'commissions') {
+      if (!this.customer) throw new Error('请先登录 IPZSK。')
+      return parseIpzskCommissions(await this.auth.commissions())
     }
     if (request.type === 'billing') {
       if (!this.customer) throw new Error('请先登录 IPZSK。')

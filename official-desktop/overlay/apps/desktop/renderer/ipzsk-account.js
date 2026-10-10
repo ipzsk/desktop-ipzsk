@@ -5,6 +5,7 @@ let page = 1
 let reading = false
 let changing = false
 let currentBill
+let readingEarnings = false
 
 const formatPoints = value => Number(value).toLocaleString('zh-CN', { maximumFractionDigits: 6 }) + ' 点'
 const notice = message => { get('notice').textContent = message }
@@ -47,6 +48,7 @@ function renderBill(data) {
 
 async function refresh() {
   if (!signedIn || reading) return
+  void refreshEarnings()
   reading = true
   get('refresh').disabled = true
   get('previous').disabled = true
@@ -58,6 +60,30 @@ async function refresh() {
     get('available').textContent = '暂不可用'
     get('frozen').textContent = currentBill ? '下方保留上次读取的消费记录，请稍后刷新余额。' : '请稍后刷新。'
   } finally { reading = false; get('refresh').disabled = false }
+}
+
+async function refreshEarnings() {
+  if (!signedIn || readingEarnings) return
+  readingEarnings = true
+  try {
+    const data = await request({ type: 'commissions' })
+    const money = value => Number(value).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 8 })
+    const labels = { bd: 'BD 收益', developer: '开发者收益', invitation: '邀请奖励', conversion: '转使用余额', payout: '提现', requested: '待审核', approved: '待人工转账', paid: '已打款', cancelled: '已取消', pending: '待转入', applying: '正在转入', applied: '已转入', review: '待人工核对' }
+    get('earnings-status').textContent = (data.bd_active ? 'BD 已开通 · ' : '') + `已邀请 ${data.referrals} 人` + (data.balance.frozen ? ' · 收益冻结，请联系平台核对' : '')
+    get('invitation').value = data.invitation_url
+    for (const [id, amount] of [['total', data.balance.total_cny], ['available', data.balance.available_cny], ['withdrawable', data.balance.withdrawable_cny]]) get('earnings-' + id).textContent = money(amount)
+    const render = (id, rows) => get(id).replaceChildren(...rows.map(values => {
+      const tr = document.createElement('tr')
+      for (const value of values) { const td = document.createElement('td'); td.textContent = value; tr.append(td) }
+      return tr
+    }))
+    render('earnings-rows', data.ledger.length ? data.ledger.map(row => [labels[row.kind], money(row.amount_cny), new Date(row.created_at).toLocaleString('zh-CN'), new Date(row.available_at).toLocaleString('zh-CN')]) : [['暂无收益流水']])
+    const operations = [...data.payouts.map(row => ({ ...row, kind: 'payout' })), ...data.conversions.map(row => ({ ...row, kind: 'conversion' }))].sort((a, b) => b.created_at.localeCompare(a.created_at))
+    render('earnings-operations', operations.length ? operations.map(row => [labels[row.kind], money(row.amount_cny), labels[row.state], new Date(row.created_at).toLocaleString('zh-CN') + ' / ' + row.id]) : [['暂无申请记录']])
+  } catch (error) {
+    get('earnings-status').textContent = '收益读取失败，请刷新重试；下方可能保留上次结果。'
+    notice(error.message)
+  } finally { readingEarnings = false }
 }
 
 get('login-form').addEventListener('submit', async event => {
@@ -75,6 +101,8 @@ get('login-form').addEventListener('submit', async event => {
 })
 
 get('account-site').addEventListener('click', () => { void request({ type: 'accountSite' }).catch(error => notice(error.message)) })
+get('earnings-site').addEventListener('click', () => { void request({ type: 'earningsSite' }).catch(error => notice(error.message)) })
+get('invitation').addEventListener('focus', event => event.currentTarget.select())
 get('refresh').addEventListener('click', () => { notice(''); void refresh() })
 get('previous').addEventListener('click', () => { if (!reading && page > 1) { page -= 1; void refresh() } })
 get('next').addEventListener('click', () => { if (!reading) { page += 1; void refresh() } })

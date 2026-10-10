@@ -7,6 +7,14 @@ const fixture = () => ({ version: 1, token: 'ipz_' + 'x'.repeat(43), default_mod
 ] })
 
 describe('private IPZSK Host bootstrap', () => {
+  it('does not retain server Skill ownership or eligibility data', () => {
+    const row = { plugin_id: '00000000-0000-0000-0000-000000000000', credential: fixture().token,
+      skills: [{ name: 'fixture-skill', content_sha256: 'a'.repeat(64) }] }
+    const result = parseIpzskHostBootstrap({ ...fixture(), skill_configs: [row] })
+    expect(result).not.toHaveProperty('skill_configs')
+    expect(JSON.stringify(ipzskModelPatches(result))).not.toContain(row.credential)
+  })
+
   it('validates and detaches the catalog while omitting unknown fields', () => {
     const value = { ...fixture(), unexpected: 'not-for-host' }
     const result = parseIpzskHostBootstrap(value)

@@ -19,27 +19,29 @@
        hostCtx.provide(DSH_LAUNCH_ENVIRONMENT_KEY, options.environment)
 --- a/apps/desktop-host/package.json
 +++ b/apps/desktop-host/package.json
-@@ -28,6 +28,8 @@
+@@ -28,6 +28,9 @@
      "@deepseek-ai/dsh-workspace": "workspace:*"
    },
    "devDependencies": {
 +    "@deepseek-ai/dsh-settings": "workspace:*",
 +    "@deepseek-ai/dsh-launch-environment": "workspace:*",
++    "@deepseek-ai/dsh-llm": "workspace:*",
      "@deepseek-ai/cordis-plugin-loader": "workspace:~",
      "@deepseek-ai/cordis-plugin-include": "workspace:~",
      "@deepseek-ai/dsh-skill": "workspace:*"
 --- a/apps/desktop-host/src/index.ts
 +++ b/apps/desktop-host/src/index.ts
-@@ -1,6 +1,8 @@
+@@ -1,6 +1,9 @@
  /** Launch the Desktop profile through the Web application and report its URL to Electron. */
  
  import { delimiter, join } from 'node:path'
 +import { receiveIpzskBootstrap } from './ipzsk-bootstrap-channel.ts'
++import { installIpzskCommissions } from './ipzsk-commission.ts'
 +import { parseIpzskHostBootstrap, withIpzskEnvironment, ipzskModelPatches, ipzskPluginPatches, installIpzskPluginConfig, applyIpzskModelSettings } from './ipzsk-bootstrap.ts'
  import { inspect } from 'node:util'
  import { loadLayeredEnv, loadProfileDirectory, reportSkippedBundles } from '@deepseek-ai/dsh-app-boot'
  import { runProfile } from '@deepseek-ai/dsh/profile-boot'
-@@ -16,18 +18,27 @@
+@@ -16,18 +19,28 @@
  import { installOfficeEngineResolution } from './office-engine.ts'
  
  async function main(): Promise<void> {
@@ -57,6 +59,7 @@
 -    environment: loadLayeredEnv('dsh'),
 +    environment: withIpzskEnvironment(loadLayeredEnv('dsh'), bootstrap),
 +    beforeBoot: (ctx) => {
++      installIpzskCommissions(ctx)
 +      ctx.provide('ipzskDesktop', { dataDir: join(resolveDshHome(), 'plugin-data') })
 +      installIpzskPluginConfig(ctx, ipzskPluginPatches(bootstrap, profile.layers,
 +        [...profile.layers.flatMap(layer => layer.patches), ...profile.patches]))
@@ -127,7 +130,7 @@
      {
        "path": "../cli"
      },
-@@ -30,6 +46,15 @@
+@@ -30,6 +46,18 @@
      },
      {
        "path": "../../packages/credentials/deepseek-account"
@@ -140,6 +143,9 @@
 +    },
 +    {
 +      "path": "../../vendor/include"
++    },
++    {
++      "path": "../../packages/llm/llm"
      }
    ]
  }

@@ -69,6 +69,11 @@ beforeEach(() => {
     if (path === '/api/me/desktop/bootstrap') return json(bootstrap)
     if (path === '/api/me/wallet') return json(bill.wallet)
     if (path === '/api/me/usage') return json(bill.usage)
+    if (path === '/api/me/commissions') return json({
+      profile: { bd_active: true, user_id: 'private-user' }, referrals: 2, invitation_url: 'https://api.ipzsk.com/api/account/referral/' + 'a'.repeat(32),
+      balance: { total_cny: '31.20000000', available_cny: '0.00000000', withdrawable_cny: '0.00000000', frozen: false },
+      ledger: ['bd', 'developer'].map((kind, index) => ({ kind, amount_cny: index ? '19.20000000' : '12.00000000', created_at: '2026-10-10T00:00:00Z', available_at: '2026-11-09T00:00:00Z', cost_cny: '40', paid_cny: '100', token })), payouts: [], conversions: [], token,
+    })
     if (path === '/api/me/vouchers/redeem') return json({ amount_points: '100', replayed: false, token })
     if (path === '/api/auth/sign-out') throw new Error('private connection error')
     throw new Error('unexpected fixture request')
@@ -124,10 +129,22 @@ describe('isolated IPZSK account window', () => {
 
   it('rejects malformed requests and blocks billing until login', async () => {
     await controller.openAccount()
-    for (const request of [{ type: 'billing', page: -1 }, { type: 'redeem', code: '' }, { type: 'state', extra: true }, { type: 'billing', page: 1 }]) {
+    for (const request of [{ type: 'billing', page: -1 }, { type: 'redeem', code: '' }, { type: 'state', extra: true }, { type: 'billing', page: 1 }, { type: 'commissions' }, { type: 'earningsSite' }]) {
       expect((await invoke(request)).ok).toBe(false)
     }
     expect(fetcher).not.toHaveBeenCalled()
+  })
+
+  it('projects own earnings without financial internals and opens the existing wallet', async () => {
+    await login()
+    const result = await invoke({ type: 'commissions' })
+    expect(result.ok).toBe(true)
+    expect(result.value).toMatchObject({ balance: { total_cny: '31.20000000' }, ledger: [{ kind: 'bd', amount_cny: '12.00000000' }, { kind: 'developer', amount_cny: '19.20000000' }] })
+    expect(JSON.stringify(result)).not.toMatch(/cost_cny|paid_cny|private-user|ipz_/u)
+    expect((await invoke({ type: 'commissions', user_id: 'another-user' })).ok).toBe(false)
+    expect((await invoke({ type: 'earningsSite', url: 'https://attacker.invalid' })).ok).toBe(false)
+    expect((await invoke({ type: 'earningsSite' })).ok).toBe(true)
+    expect(mocks.openExternal).toHaveBeenCalledWith('https://www.ipzsk.com/#wallet')
   })
 
   it('clears local login and starts Host shutdown even when remote sign-out is offline', async () => {

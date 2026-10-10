@@ -29,7 +29,15 @@
           <label for="voucher">充值码</label>
           <div class="input-row"><input id="voucher" maxlength="100" autocomplete="off" required placeholder="输入充值码"><button id="redeem" type="submit">兑换充值码</button></div>
         </form>
-        <p class="caption">10 元 = 1000 点。文字按 Token 费率 × 2.5 结算；图片按最终上游费用 × 2.5 结算。</p>
+        <p class="caption">文字、图片等调用按平台价格结算，实际消耗以后台账单为准。</p>
+        <h2>邀请与收益</h2>
+        <p id="earnings-status" class="caption">正在读取收益…</p>
+        <label for="invitation">我的邀请链接</label><input id="invitation" readonly>
+        <div class="wallet"><div><span class="caption">收益余额（元）</span><strong id="earnings-total">—</strong></div><div><span class="caption">可转使用余额（元）</span><strong id="earnings-available">—</strong></div><div><span class="caption">本月可提现（元）</span><strong id="earnings-withdrawable">—</strong></div></div>
+        <p class="caption">收益观察 30 天。上月已成熟收益可申请月结，提现至少 100 元；收益转使用余额后不可逆，也不再分佣。</p>
+        <button id="earnings-site" class="quiet" type="button">申请提现 / 转使用余额</button>
+        <details><summary>最近收益流水</summary><div class="table-wrap"><table><thead><tr><th>项目</th><th>金额（元）</th><th>入账时间</th><th>可用时间</th></tr></thead><tbody id="earnings-rows"></tbody></table></div></details>
+        <details><summary>提现与转余额记录</summary><div class="table-wrap"><table><thead><tr><th>项目</th><th>金额（元）</th><th>状态</th><th>时间 / 申请编号</th></tr></thead><tbody id="earnings-operations"></tbody></table></div></details>
         <h2>消费记录</h2>
         <div class="table-wrap"><table><thead><tr><th>时间 / 请求编号</th><th>模型</th><th>输入 / 输出 Token</th><th>消耗</th></tr></thead><tbody id="rows"></tbody></table></div>
         <p id="empty" hidden>暂无消费记录。</p>
