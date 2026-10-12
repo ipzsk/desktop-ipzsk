@@ -21,15 +21,59 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/anywhere-labs/deepseek-harness-desktop/releases/latest"><img src="https://img.shields.io/github/v/release/anywhere-labs/deepseek-harness-desktop?style=flat&amp;label=release&amp;color=4D6BFE" alt="Latest release"></a>
-  <a href="https://github.com/anywhere-labs/deepseek-harness-desktop/releases"><img src="https://img.shields.io/github/downloads/anywhere-labs/deepseek-harness-desktop/total?style=flat&amp;label=downloads&amp;color=4D6BFE" alt="Total downloads"></a>
-  <a href="https://github.com/anywhere-labs/deepseek-harness-desktop"><img src="https://img.shields.io/github/stars/anywhere-labs/deepseek-harness-desktop?style=flat&amp;label=%E2%98%85&amp;color=08C" alt="GitHub stars"></a>
+  <a href="https://github.com/ipzsk/desktop-ipzsk/releases/latest"><img src="https://img.shields.io/github/v/release/ipzsk/desktop-ipzsk?style=flat&amp;label=release&amp;color=4D6BFE" alt="Latest release"></a>
+  <a href="https://github.com/ipzsk/desktop-ipzsk/releases"><img src="https://img.shields.io/github/downloads/ipzsk/desktop-ipzsk/total?style=flat&amp;label=downloads&amp;color=4D6BFE" alt="Total downloads"></a>
+  <a href="https://github.com/ipzsk/desktop-ipzsk"><img src="https://img.shields.io/github/stars/ipzsk/desktop-ipzsk?style=flat&amp;label=%E2%98%85&amp;color=08C" alt="GitHub stars"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2EA44F?style=flat" alt="MIT License"></a>
   <a href="https://discord.gg/TJeGqKRNM"><img src="https://img.shields.io/badge/Discord-5865F2?style=flat&amp;logo=discord&amp;logoColor=white" alt="Join Discord"></a>
   <img src="https://img.shields.io/badge/macOS%20%7C%20Windows-4493F8?style=flat-square" alt="Supported platforms: macOS and Windows">
 </p>
 
 DSH Desktop 将 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的本地 Web UI、Host 服务和插件系统集成到原生桌面应用中。项目固定并原样运行特定上游版本；DSH Desktop 提供窗口、托盘、终端、更新和工作配置，并通过 DeepSeek Harness 提供的插件机制与上游能力组合。
+
+## IPZSK 二次开发架构
+
+本仓库是基于 DeepSeek 官方 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 桌面端架构的 IPZSK 二次开发版。官方仓库中的 Harness 核心、Web UI、Host 服务和插件体系构成底座；固定的上游提交由 [`.gitmodules`](.gitmodules) 与 [`upstream.json`](upstream.json) 记录。IPZSK 层负责账户登录、默认模型接入、桌面打包、更新服务和插件市场。
+
+上游代码固定在 `deepseek-harness/` 子模块中，IPZSK 功能位于桌面自有模块。升级官方底座时先更新固定版本，再运行桌面端构建与回归检查，插件仓库无需跟随桌面端一起重新发布。
+
+### 使用的插件市场
+
+客户端内置 **IPZSK 插件市场**，产品界面显示“IPZSK 插件”。内部模块沿用 `dsh-community-market` 包名和 Profile 配置键，以便已有用户配置继续生效。市场目录固定来自 [token-ipzsk](https://github.com/ipzsk/token-ipzsk) 的 `/api/me/plugin-market`；通用 `dsh-market` 仍可作为独立可选市场使用。
+
+插件更新流程：
+
+1. 插件在自己的仓库构建、测试，并发布带 `.tgz` 安装包的 GitHub Release。
+2. 开发者在 [IPZSK 开发者中心](https://www.ipzsk.com/developer) 提交 Release。
+3. 管理员审核代码、权限、包名、版本和客户端兼容性，确认后上架。
+4. 桌面端“检查更新”重新读取审核目录，只接收插件 ID 和审核版本 ID。
+5. Host 再次向后台校验，下载准确的 Release 附件，并核对包名、版本、大小、SHA-256 和最低客户端版本。
+6. 安装前创建恢复检查点，安装后提示重启。插件数据目录保留，插件可以独立于桌面端持续更新。
+
+桌面客户端本身采用另一条更新链路：客户端访问 `https://api.ipzsk.com/api/desktop/version` 检查当前频道的新版本，再下载对应安装包。桌面版本与插件版本互不绑定。
+
+## 六个仓库如何协作
+
+| 仓库 | 职责 | 与桌面端的关系 |
+| --- | --- | --- |
+| [web-ipzsk](https://github.com/ipzsk/web-ipzsk) | 官网、账户、开发者中心和 Web 创作工作台 | 提供注册、充值、插件提交和客户端下载入口 |
+| [desktop-ipzsk](https://github.com/ipzsk/desktop-ipzsk) | 当前仓库 | 承载 DeepSeek 官方底座、IPZSK 登录和插件市场 |
+| [token-ipzsk](https://github.com/ipzsk/token-ipzsk) | 账户、号池、路由、计费、插件审核和更新目录 | 为桌面端提供 bootstrap、模型、账单与市场 API |
+| [plugin-dsh-imagegen](https://github.com/ipzsk/plugin-dsh-imagegen) | AI 生图、改图、模板、画廊和电商视觉 | 从市场独立安装和更新 |
+| [plugin-dsh-doc-to-excel](https://github.com/ipzsk/plugin-dsh-doc-to-excel) | Word/PDF 提取、分类和 Excel 输出 | 从市场独立安装和更新 |
+| [plugin-dsh-swf-studio](https://github.com/ipzsk/plugin-dsh-swf-studio) | 宴会厅/FloorLED 场景编辑与 SWF 导出 | 从市场独立安装和更新 |
+
+```mermaid
+flowchart LR
+  Official[DeepSeek 官方 deepseek-harness] --> Desktop[desktop-ipzsk]
+  Web[web-ipzsk] --> Token[token-ipzsk]
+  Desktop --> Token
+  Token --> Market[IPZSK 插件市场目录]
+  Market --> Desktop
+  Desktop --> Image[plugin-dsh-imagegen]
+  Desktop --> Excel[plugin-dsh-doc-to-excel]
+  Desktop --> SWF[plugin-dsh-swf-studio]
+```
 
 <a id="run"></a>
 
@@ -217,7 +261,7 @@ Discord：[加入 DSH Desktop 社区](https://discord.gg/TJeGqKRNM)
 | 深求社区（DeepSeek.club） | 全球最大的第三方 DeepSeek 开源生态社区，聚合模型库、应用榜、Harness 插件库与 Harness 学院，一站式服务开发者，研究者与企业用户。 | [官网](https://deepseek.club) |
 | MkSaaS · TanStarter | 面向独立开发者的商业 SaaS 启动模板。MkSaaS 基于 Next.js，TanStarter 基于 TanStack Start 与 Cloudflare，内置 AI、认证、支付和后台等常用能力。 | [MkSaaS](https://mksaas.com) · [TanStarter](https://tanstarter.dev) |
 
-<sub>如果希望收录您的项目，欢迎加入微信群并私信 @王博升Benson，或联系 t4wefan@qq.com，或<a href="https://github.com/anywhere-labs/deepseek-harness-desktop/issues">提出 issue</a>。</sub>
+<sub>如果希望收录您的项目，请在 <a href="https://github.com/ipzsk/desktop-ipzsk/issues">desktop-ipzsk Issues</a> 提交信息。</sub>
 
 ## License
 
@@ -228,13 +272,3 @@ Discord：[加入 DSH Desktop 社区](https://discord.gg/TJeGqKRNM)
 > 本项目完全开源免费。如果有人向您以任何形式出售此软件，请拒绝交易。
 
 > DSH Desktop 是独立的社区项目，与深度求索不存在隶属、合作、授权或背书关系。
-
-## Star History
-
-<a href="https://www.star-history.com/?repos=anywhere-labs%2Fdeepseek-harness-desktop&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=anywhere-labs/deepseek-harness-desktop&type=date&theme=dark&legend=top-left&sealed_token=BRTkOyC4czCEkIyFb5-QxrsC-kaDotBJ8tsjxrWs-UGfmBqfRCXSwieZPlVTCYOjJVEZ29uLvmBjAPREB524J5dPN1jk-UA7ajFdLdrbjumJqoOBeGWmig" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=anywhere-labs/deepseek-harness-desktop&type=date&legend=top-left&sealed_token=BRTkOyC4czCEkIyFb5-QxrsC-kaDotBJ8tsjxrWs-UGfmBqfRCXSwieZPlVTCYOjJVEZ29uLvmBjAPREB524J5dPN1jk-UA7ajFdLdrbjumJqoOBeGWmig" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=anywhere-labs/deepseek-harness-desktop&type=date&legend=top-left&sealed_token=BRTkOyC4czCEkIyFb5-QxrsC-kaDotBJ8tsjxrWs-UGfmBqfRCXSwieZPlVTCYOjJVEZ29uLvmBjAPREB524J5dPN1jk-UA7ajFdLdrbjumJqoOBeGWmig" />
- </picture>
-</a>
